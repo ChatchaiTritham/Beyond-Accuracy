@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "seed": 42,
+    "cohort_n": 501,
+    "n_features": 48,
+    "n_per_tier": 167,
+    "prevalence": 0.469061876247505,
+    "alpha": 0.1,
+    "n_calibration_bins": 10,
+    "split": {
+      "train": 250,
+      "calibration": 125,
+      "test": 126
+    },
+    "tier_threshold": {
+      "low": 0.6,
+      "medium": 0.45,
+      "high": 0.3
+    },
+    "harm_weights": {
+      "low": 1.0,
+      "medium": 3.0,
+      "high": 10.0
+    }
+  },
+  "performance": {
+    "accuracy": 0.8095238095238095,
+    "auroc": 0.9249936756893499,
+    "f1": 0.7966101694915254,
+    "sensitivity": 0.7966101694915254,
+    "specificity": 0.8208955223880597,
+    "brier_score": 0.11359523553483537
+  },
+  "calibration": {
+    "ece_overall": 0.07993435634468295,
+    "ece_by_tier": {
+      "Low": 0.08332883470376348,
+      "Medium": 0.13501939399000223,
+      "High": 0.16263094643539402
+    }
+  },
+  "coverage_risk": {
+    "aurc_overall": 0.14612683663659692,
+    "aurc_by_tier": {
+      "Low": 0.10080952670923443,
+      "Medium": 0.1157698488752226,
+      "High": 0.2226929250198331
+    }
+  },
+  "harm": {
+    "harm_weighted_loss_framework": 0.9920634920634921,
+    "harm_weighted_loss_baseline": 1.1587301587301588,
+    "reduction_fraction": 0.1438356164383562,
+    "harm_by_tier_framework": {
+      "high": 2.380952380952381,
+      "low": 0.09523809523809523,
+      "medium": 0.5
+    },
+    "harm_by_tier_baseline": {
+      "high": 2.8571428571428568,
+      "low": 0.11904761904761904,
+      "medium": 0.5
+    }
+  },
+  "explanation_stability": {
+    "eta_xai_spearman": 0.9752496743378202,
+    "top_feature": "heart_rate__last"
+  },
+  "conformal": {
+    "alpha": 0.1,
+    "empirical_coverage": 0.9285714285714286,
+    "target_coverage": 0.9,
+    "avg_set_size": 1.2301587301587302
+  },
+  "governance": {
+    "gates": {
+      "calibration_high_tier": false,
+      "coverage_risk_high_tier": true,
+      "harm_weighted_loss": false,
+      "conformal_coverage": true,
+      "explanation_stability": true
+    },
+    "n_passed": 3,
+    "score": 0.6,
+    "verdict": "Conditional",
+    "failed_gates": [
+      "calibration_high_tier",
+      "harm_weighted_loss"
+    ]
+  }
+}

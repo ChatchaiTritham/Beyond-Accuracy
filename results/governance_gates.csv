@@ -1,0 +1,8 @@
+gate,passed
+calibration_high_tier,fail
+coverage_risk_high_tier,pass
+harm_weighted_loss,fail
+conformal_coverage,pass
+explanation_stability,pass
+SCORE,0.60
+VERDICT,Conditional

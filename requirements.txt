@@ -1,3 +1,10 @@
 numpy
+pandas
+scipy
+scikit-learn
 matplotlib
 Pillow
+pyyaml
+tqdm
+pydantic>=2
+shap>=0.42.0
