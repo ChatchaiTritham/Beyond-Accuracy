@@ -1,0 +1,4 @@
+tier,ece,aurc,harm_framework,harm_baseline
+Low,0.0833,0.1008,0.0952,0.1190
+Medium,0.1350,0.1158,0.5000,0.5000
+High,0.1626,0.2227,2.3810,2.8571

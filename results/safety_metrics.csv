@@ -1,0 +1,7 @@
+metric,symbol,value,lower_is_better
+calibration_error_overall,ECE,0.0799,yes
+coverage_risk_area_overall,AURC,0.1461,yes
+harm_weighted_loss_framework,L_harm,0.9921,yes
+explanation_stability,eta_xai,0.9752,no
+conformal_coverage,C_alpha,0.9286,no
+accuracy,acc,0.8095,no
