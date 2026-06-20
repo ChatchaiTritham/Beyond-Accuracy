@@ -56,7 +56,11 @@ from basics_cdss.temporal.disease_models import (
     RespiratoryDistressModel,
     CardiacEventModel,
 )
-from basics_cdss.metrics.calibration import expected_calibration_error, brier_score
+from basics_cdss.metrics.calibration import (
+    expected_calibration_error,
+    brier_score,
+    reliability_curve,
+)
 from basics_cdss.metrics.coverage_risk import (
     coverage_risk_curve,
     area_under_risk_coverage_curve,
@@ -73,6 +77,9 @@ T_STEPS = 24                       # 6 h trajectory at dt = 0.25 h
 DT = 0.25
 ALPHA = 0.10                       # conformal miscoverage target -> 90% coverage
 N_BINS = 10
+N_BOOTSTRAP = 1000                 # seeded resamples for CI bands
+CI_LEVEL = 0.95                    # two-sided percentile interval
+DCA_THRESHOLDS = np.round(np.linspace(0.01, 0.50, 50), 4)  # net-benefit sweep
 rng = np.random.RandomState(SEED)
 OUT = Path(__file__).parent / "results"
 
@@ -253,6 +260,164 @@ def governance_verdict(ece_high, aurc_high, harm_loss, coverage, alpha):
     return gates
 
 
+def decision_curve(y_true, y_prob, thresholds):
+    """Decision-curve analysis: clinical net benefit vs threshold probability.
+
+    Net benefit at threshold p_t for a model that treats when y_prob >= p_t:
+
+        NB(p_t) = TP/N - FP/N * (p_t / (1 - p_t))
+
+    Two reference strategies are returned for the standard DCA plot:
+      * treat-all   : everyone treated  -> NB = prev - (1-prev)*p_t/(1-p_t)
+      * treat-none  : nobody treated    -> NB = 0
+
+    All three are computed directly from the held-out test fold (seed 42); no
+    value is hardcoded. This is the figure the "beyond accuracy" framing needs:
+    it shows the decision-analytic benefit of acting on the model's probabilities
+    across the clinically plausible range of treatment thresholds.
+    """
+    y_true = np.asarray(y_true).astype(float)
+    y_prob = np.asarray(y_prob).astype(float)
+    n = len(y_true)
+    prev = y_true.mean()
+    nb_model, nb_all = [], []
+    for pt in thresholds:
+        w = pt / (1.0 - pt)
+        pred = (y_prob >= pt).astype(float)
+        tp = float(np.sum((pred == 1) & (y_true == 1)))
+        fp = float(np.sum((pred == 1) & (y_true == 0)))
+        nb_model.append(tp / n - fp / n * w)
+        nb_all.append(prev - (1.0 - prev) * w)
+    return {
+        "thresholds": [float(t) for t in thresholds],
+        "net_benefit_model": [float(v) for v in nb_model],
+        "net_benefit_treat_all": [float(v) for v in nb_all],
+        "net_benefit_treat_none": [0.0 for _ in thresholds],
+        "prevalence": float(prev),
+    }
+
+
+def reliability_data(y_true, y_prob, n_bins):
+    """Reliability-diagram bins (predicted vs observed) + overall ECE.
+
+    Uses the repo's own reliability_curve()/ECE so the diagram and the reported
+    ECE are guaranteed consistent. Returns only populated bins.
+    """
+    conf, acc, cnt = reliability_curve(y_true, y_prob, n_bins)
+    return {
+        "bin_confidence": [float(v) for v in conf],
+        "bin_accuracy": [float(v) for v in acc],
+        "bin_count": [int(v) for v in cnt],
+        "ece": float(expected_calibration_error(y_true, y_prob, n_bins)),
+        "n_bins": int(n_bins),
+    }
+
+
+def bootstrap_risk_band(y_true, y_prob, bootstrap_seed, n_boot, ci):
+    """Seeded stratified bootstrap CI band for the overall coverage-risk curve.
+
+    The coverage grid is the deterministic threshold grid used by
+    coverage_risk_curve(); for each resample we recompute risk on that grid and
+    take percentile bands across resamples. Returns the central curve plus
+    lower/upper bands aligned to the shared coverage grid.
+    """
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    cov, risk, _ = coverage_risk_curve(y_true, y_prob)
+    n = len(y_true)
+    boot_rng = np.random.RandomState(bootstrap_seed)
+    risks = np.full((n_boot, len(cov)), np.nan)
+    for b in range(n_boot):
+        idx = boot_rng.randint(0, n, n)
+        _, rb, _ = coverage_risk_curve(y_true[idx], y_prob[idx])
+        risks[b] = rb
+    lo_q = (1.0 - ci) / 2.0
+    hi_q = 1.0 - lo_q
+    lower = np.nanpercentile(risks, 100 * lo_q, axis=0)
+    upper = np.nanpercentile(risks, 100 * hi_q, axis=0)
+    return {
+        "coverage": [float(c) for c in cov],
+        "risk": [None if np.isnan(r) else float(r) for r in risk],
+        "risk_lower": [None if np.isnan(r) else float(r) for r in lower],
+        "risk_upper": [None if np.isnan(r) else float(r) for r in upper],
+        "ci_level": float(ci),
+        "n_bootstrap": int(n_boot),
+    }
+
+
+def bootstrap_harm_ci(y_true, pred, tier_lc, weights, bootstrap_seed, n_boot, ci):
+    """Seeded bootstrap CI for per-tier harm-weighted loss (for error bars)."""
+    y_true = np.asarray(y_true)
+    pred = np.asarray(pred)
+    tier_lc = np.asarray(tier_lc)
+    n = len(y_true)
+    boot_rng = np.random.RandomState(bootstrap_seed)
+    tiers = ["low", "medium", "high"]
+    samples = {t: [] for t in tiers}
+    for _ in range(n_boot):
+        idx = boot_rng.randint(0, n, n)
+        h = harm_by_risk_tier(y_true[idx], pred[idx], tier_lc[idx], weights)
+        for t in tiers:
+            samples[t].append(h.get(t, 0.0))
+    lo_q = (1.0 - ci) / 2.0
+    out = {}
+    for t in tiers:
+        arr = np.asarray(samples[t])
+        out[t] = {
+            "lower": float(np.percentile(arr, 100 * lo_q)),
+            "upper": float(np.percentile(arr, 100 * (1.0 - lo_q))),
+        }
+    return out
+
+
+def _fnr_at_coverage(y_true, y_prob, pred, target_cov):
+    """Helper: pick the acceptance threshold giving coverage closest to target,
+    then return selective FNR (retained only) and overall FNR (abstained
+    positives counted as missed)."""
+    n = len(y_true)
+    order = np.sort(y_prob)
+    # candidate thresholds = the confidence quantiles; choose the one whose
+    # retained fraction is closest to target_cov.
+    best_tau, best_gap = 0.5, 1e9
+    for tau in np.unique(np.round(order, 4)):
+        cov = float((y_prob >= tau).mean())
+        gap = abs(cov - target_cov)
+        if gap < best_gap:
+            best_gap, best_tau = gap, float(tau)
+    retained = y_prob >= best_tau
+    pos = y_true == 1
+    n_pos = int(pos.sum())
+    sel_pos = pos & retained
+    sel_fn = int(np.sum(sel_pos & (pred == 0)))
+    sel_fnr = sel_fn / int(sel_pos.sum()) if sel_pos.sum() > 0 else 0.0
+    overall_fn = int(np.sum(pos & ((~retained) | (pred == 0))))
+    overall_fnr = overall_fn / n_pos if n_pos > 0 else 0.0
+    return {
+        "target_coverage": float(target_cov),
+        "tau": float(best_tau),
+        "coverage": float(retained.mean()),
+        "selective_fnr": float(sel_fnr),
+        "overall_fnr": float(overall_fnr),
+    }
+
+
+def selective_overall_fnr(y_true, y_prob):
+    """Selective vs overall FNR across coverage operating points (for fig4).
+
+    'selective FNR' = misses among the cases the system keeps (confidence above
+    the acceptance threshold); 'overall FNR' = misses over all positives, i.e.
+    abstained positives are counted as missed. Reported at a few coverage levels
+    so the figure can show how abstention trades coverage for fewer missed
+    positives among retained cases. All deterministic on the test fold.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob)
+    pred = (y_prob >= 0.5).astype(int)
+    points = [_fnr_at_coverage(y_true, y_prob, pred, c)
+              for c in (0.5, 0.7, 0.9, 1.0)]
+    return {"points": points}
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     np.random.seed(SEED)
@@ -381,6 +546,56 @@ def main():
         f"(failed gates: {failed if failed else 'none'})"
     )
 
+    # ----- decision-curve analysis (net benefit vs threshold prob) ----------
+    dca = decision_curve(y_te, p_te, DCA_THRESHOLDS)
+    print(
+        f"    DCA: model net benefit at p_t=0.30 = "
+        f"{dca['net_benefit_model'][np.argmin(np.abs(DCA_THRESHOLDS - 0.30))]:.4f}"
+    )
+
+    # ----- reliability-diagram bins (predicted vs observed) -----------------
+    reliability = reliability_data(y_te, p_te, N_BINS)
+    reliability_by_tier = {}
+    for tier in ["Low", "Medium", "High"]:
+        mask = tiers_te == tier
+        reliability_by_tier[tier] = reliability_data(y_te[mask], p_te[mask], N_BINS)
+    print(f"    reliability: {len(reliability['bin_confidence'])} populated bins")
+
+    # ----- coverage-risk full curves + seeded bootstrap CI band -------------
+    cov_curve, risk_curve_o, _ = coverage_risk_curve(y_te, p_te)
+    cr_curves = {
+        "overall": {
+            "coverage": [float(c) for c in cov_curve],
+            "risk": [None if np.isnan(r) else float(r) for r in risk_curve_o],
+        }
+    }
+    for tier in ["Low", "Medium", "High"]:
+        mask = tiers_te == tier
+        c, r, _ = coverage_risk_curve(y_te[mask], p_te[mask])
+        cr_curves[tier] = {
+            "coverage": [float(x) for x in c],
+            "risk": [None if np.isnan(x) else float(x) for x in r],
+        }
+    risk_band = bootstrap_risk_band(y_te, p_te, SEED, N_BOOTSTRAP, CI_LEVEL)
+    print(f"    coverage-risk CI band: {N_BOOTSTRAP} seeded bootstrap resamples")
+
+    # ----- selective vs overall FNR across coverage operating points --------
+    fnr = selective_overall_fnr(y_te, p_te)
+    _f = fnr["points"]
+    print(
+        "    FNR (cov->sel/overall): "
+        + "  ".join(f"{p['coverage']:.2f}->{p['selective_fnr']:.2f}/"
+                    f"{p['overall_fnr']:.2f}" for p in _f)
+    )
+
+    # ----- harm per-tier bootstrap CI (error bars for fig5) -----------------
+    harm_ci_fw = bootstrap_harm_ci(
+        y_te, fw_pred, tier_lc, HARM_WEIGHTS, SEED, N_BOOTSTRAP, CI_LEVEL
+    )
+    harm_ci_bl = bootstrap_harm_ci(
+        y_te, base_pred, tier_lc, HARM_WEIGHTS, SEED, N_BOOTSTRAP, CI_LEVEL
+    )
+
     # ----- assemble + persist -----------------------------------------------
     results = {
         "meta": {
@@ -410,17 +625,25 @@ def main():
         "calibration": {
             "ece_overall": float(ece_overall),
             "ece_by_tier": {k: float(v) for k, v in ece_by_tier.items()},
+            "reliability_overall": reliability,
+            "reliability_by_tier": reliability_by_tier,
         },
         "coverage_risk": {
             "aurc_overall": float(aurc_overall),
             "aurc_by_tier": {k: float(v) for k, v in aurc_by_tier.items()},
+            "curves": cr_curves,
+            "bootstrap_band": risk_band,
+            "fnr": fnr,
         },
+        "decision_curve": dca,
         "harm": {
             "harm_weighted_loss_framework": float(harm_framework),
             "harm_weighted_loss_baseline": float(harm_baseline),
             "reduction_fraction": float(harm_reduction),
             "harm_by_tier_framework": {k: float(v) for k, v in harm_tier_fw.items()},
             "harm_by_tier_baseline": {k: float(v) for k, v in harm_tier_base.items()},
+            "harm_by_tier_framework_ci": harm_ci_fw,
+            "harm_by_tier_baseline_ci": harm_ci_bl,
         },
         "explanation_stability": {
             "eta_xai_spearman": float(eta_xai),
