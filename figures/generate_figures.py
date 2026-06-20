@@ -83,48 +83,49 @@ def load_results():
         return json.load(fh)
 
 
-# -- Global rcParams ---------------------------------------------------------
-plt.rcParams.update({
-    'font.family':        'sans-serif',
-    'font.sans-serif':    ['Arial', 'Helvetica Neue', 'Helvetica',
-                           'Segoe UI', 'DejaVu Sans'],
-    'font.size':          9.5,
-    'mathtext.fontset':   'dejavusans',
+# -- Canonical Top-Tier figure style (shared across all ChatchaiTritham repos)
+# Color-blind-safe Okabe-Ito palette; serif/Times; 300-dpi PNG + vector PDF.
+# See _management/FIGURE_STYLE.md. Data-figure series use this PALETTE; the
+# schematic/architecture diagrams keep their branded box fills (FIGURE_STYLE
+# rule 7) while inheriting the shared fonts and savefig settings.
+import matplotlib as mpl
 
-    'axes.linewidth':     0.8,
-    'axes.labelweight':   'medium',
-    'axes.labelpad':      6,
-    'axes.unicode_minus': True,
+PALETTE = ['#0072B2', '#D55E00', '#009E73', '#CC79A7',
+           '#E69F00', '#56B4E9', '#000000']
 
-    'xtick.direction':    'out',
-    'ytick.direction':    'out',
-    'xtick.major.size':   4.0,
-    'ytick.major.size':   4.0,
-    'xtick.minor.size':   2.0,
-    'ytick.minor.size':   2.0,
-    'xtick.major.width':  0.7,
-    'ytick.major.width':  0.7,
-    'xtick.minor.width':  0.5,
-    'ytick.minor.width':  0.5,
 
-    'savefig.dpi':        600,
-    'savefig.bbox':       'tight',
-    'savefig.pad_inches': 0.08,
-    'savefig.transparent': False,
+def apply_pub_style():
+    mpl.rcParams.update({
+        'figure.dpi': 150, 'savefig.dpi': 300, 'savefig.bbox': 'tight',
+        'savefig.pad_inches': 0.02,
+        'font.family': 'serif',
+        'font.serif': ['Times New Roman', 'Times', 'DejaVu Serif'],
+        'mathtext.fontset': 'stix',
+        'font.size': 10, 'axes.titlesize': 11, 'axes.labelsize': 10,
+        'xtick.labelsize': 9, 'ytick.labelsize': 9, 'legend.fontsize': 9,
+        'axes.spines.top': False, 'axes.spines.right': False,
+        'axes.linewidth': 0.8, 'axes.grid': True,
+        'grid.alpha': 0.3, 'grid.linewidth': 0.6,
+        'lines.linewidth': 1.6, 'lines.markersize': 5,
+        'legend.frameon': False, 'figure.constrained_layout.use': True,
+        'axes.prop_cycle': mpl.cycler(color=PALETTE),
+    })
+    # Project-specific additions kept on top of the canonical base.
+    mpl.rcParams.update({
+        'axes.unicode_minus': True,
+        'pdf.fonttype': 42, 'ps.fonttype': 42,
+        'xtick.direction': 'out', 'ytick.direction': 'out',
+    })
 
-    'pdf.fonttype':       42,
-    'ps.fonttype':        42,
 
-    'figure.dpi':         150,
-    'lines.antialiased':  True,
-    'patch.antialiased':  True,
-    'text.antialiased':   True,
+apply_pub_style()
 
-    'legend.framealpha':  0.95,
-    'legend.edgecolor':   GRL,
-    'legend.fancybox':    True,
-    'legend.fontsize':    7.5,
-})
+# Okabe-Ito aliases for the data-figure series (color-blind safe, palette order)
+P_BLUE   = PALETTE[0]   # overall / low
+P_ORANGE = PALETTE[1]   # medium
+P_GREEN  = PALETTE[2]   # framework / accent
+P_PINK   = PALETTE[3]   # high
+P_AMBER  = PALETTE[4]
 
 
 # ============================================================================
@@ -132,13 +133,13 @@ plt.rcParams.update({
 # ============================================================================
 
 def _save(fig, name):
-    """Save figure as vector PDF and 600-DPI PNG into the repo figures/ dir."""
-    for ext, fmt, kw in [('pdf', 'pdf', {}),
-                          ('png', 'png', dict(dpi=600))]:
+    """Save vector PDF + 300-dpi PNG (canonical) into the repo figures/ dir.
+    DPI/bbox come from apply_pub_style() rcParams (savefig.dpi=300, tight)."""
+    for ext, fmt in [('pdf', 'pdf'), ('png', 'png')]:
         path = os.path.join(OUTDIR, f'{name}.{ext}')
-        fig.savefig(path, format=fmt, **kw)
+        fig.savefig(path, format=fmt)
         kb = os.path.getsize(path) / 1024
-        sfx = ' (600 DPI)' if ext == 'png' else ''
+        sfx = ' (300 dpi)' if ext == 'png' else ' (vector)'
         print(f'  {name}.{ext}   ({kb:,.0f} KB{sfx})')
 
 
@@ -490,21 +491,22 @@ def make_fig4(res):
                 color=col, fontsize=7.0, style='italic', alpha=0.85,
                 zorder=5)
 
-    ax.fill_between(cov, 0, risk_O, alpha=0.07, color=BM, zorder=1,
+    ax.fill_between(cov, 0, risk_O, alpha=0.08, color=P_BLUE, zorder=1,
                     label=f'AURC = {aurc_O:.3f} (shaded area)')
 
-    ax.plot(cov, risk_L, color=BD, lw=1.5, ls='--', alpha=0.90, zorder=3,
+    # Color-blind-safe palette + distinct linestyles/markers (FIGURE_STYLE r.5)
+    ax.plot(cov, risk_L, color=P_GREEN, lw=1.5, ls='--', alpha=0.90, zorder=3,
             label=f'Low urgency  (AURC = {aurc_L:.3f})')
-    ax.plot(cov, risk_M, color=AM, lw=1.5, ls='-.', alpha=0.90, zorder=3,
+    ax.plot(cov, risk_M, color=P_ORANGE, lw=1.5, ls='-.', alpha=0.90, zorder=3,
             label=f'Medium urgency  (AURC = {aurc_M:.3f})')
-    ax.plot(cov, risk_H, color=RD, lw=1.5, ls=(0, (1, 1.5)), alpha=0.90,
+    ax.plot(cov, risk_H, color=P_PINK, lw=1.5, ls=(0, (1, 1.5)), alpha=0.90,
             zorder=3, label=f'High urgency  (AURC = {aurc_H:.3f})')
 
-    ax.plot(cov, risk_O, color=BD, lw=2.4, zorder=4,
+    ax.plot(cov, risk_O, color=P_BLUE, lw=2.4, zorder=4,
             label=f'Overall  (AURC = {aurc_O:.3f})')
 
     ax.axvline(op_cov, color=GRD, lw=0.9, ls=':', zorder=6)
-    ax.scatter([op_cov], [op_risk], color=BD, s=50, zorder=8,
+    ax.scatter([op_cov], [op_risk], color=P_BLUE, s=50, zorder=8,
                clip_on=False, edgecolors=WH, linewidths=0.8)
     ax.annotate(
         f'conformal\ncov. = {op_cov:.3f}',
@@ -528,8 +530,8 @@ def make_fig4(res):
         zorder=9
     )
 
-    ax.set_xlabel('Coverage', fontsize=10.0, labelpad=5)
-    ax.set_ylabel('Selective Risk  R(tau)', fontsize=10.0, labelpad=5)
+    ax.set_xlabel('Coverage (fraction retained)', fontsize=10.0, labelpad=5)
+    ax.set_ylabel(r'Selective risk  $R(\tau)$', fontsize=10.0, labelpad=5)
     ax.set_xlim(0.25, 1.02)
     ax.set_ylim(-0.01, 0.57)
     ax.set_xticks([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
@@ -544,7 +546,7 @@ def make_fig4(res):
                     handlelength=2.2)
     leg.get_frame().set_linewidth(0.5)
 
-    fig.tight_layout()
+    # constrained_layout is enabled globally; no tight_layout() (they conflict)
     _save(fig, 'fig4_coverage_risk')
     plt.close(fig)
 
@@ -575,12 +577,10 @@ def make_fig5(res):
     ece_tier = res['calibration']['ece_by_tier']
     ece_vals = [ece_tier['Low'], ece_tier['Medium'], ece_tier['High']]
 
-    fig = plt.figure(figsize=(DOUBLE_COL, 3.6))
-    gs  = GridSpec(1, 2, figure=fig, wspace=0.42,
-                   left=0.10, right=0.95, top=0.90, bottom=0.15,
-                   width_ratios=[1.0, 0.82])
-    ax_a = fig.add_subplot(gs[0])
-    ax_b = fig.add_subplot(gs[1])
+    # constrained_layout (global) handles spacing; avoid manual GridSpec margins
+    fig, (ax_a, ax_b) = plt.subplots(
+        1, 2, figsize=(DOUBLE_COL, 3.6),
+        gridspec_kw=dict(width_ratios=[1.0, 0.82]))
     fig.patch.set_facecolor(WH)
 
     for ax in (ax_a, ax_b):
@@ -597,7 +597,7 @@ def make_fig5(res):
              color=GRL, edgecolor=GRM, linewidth=0.8,
              hatch='///', label='Accuracy-only baseline', zorder=2)
     ax_a.bar(x + width / 2, fw_harm, width,
-             color=BD, edgecolor=BD, linewidth=0.8,
+             color=P_BLUE, edgecolor=P_BLUE, linewidth=0.8,
              label='Framework-guided', zorder=2)
 
     ymax = max(bl_harm) * 1.18
@@ -629,7 +629,8 @@ def make_fig5(res):
               fontsize=11, fontweight='bold', va='bottom', ha='left')
 
     # -- PANEL B: per-tier calibration error + overall eta_xai --
-    bar_col   = [BD, AM, RD]
+    # palette + hatches so tiers stay distinct in greyscale (FIGURE_STYLE r.5)
+    bar_col   = [P_BLUE, P_ORANGE, P_PINK]
     bar_hatch = ['\\\\', '...', '///']
 
     x2 = np.arange(len(tiers))
@@ -644,7 +645,7 @@ def make_fig5(res):
                   ha='center', va='bottom', fontsize=8.0, color=GRD,
                   fontweight='bold')
 
-    ax_b.axhline(eta_xai, color=GD, lw=1.0, ls='--', alpha=0.75, zorder=1,
+    ax_b.axhline(eta_xai, color=P_GREEN, lw=1.0, ls='--', alpha=0.85, zorder=1,
                  label=fr'$\eta_\mathrm{{xai}}$ = {eta_xai:.3f} (overall)')
 
     ax_b.set_xticks(x2)
