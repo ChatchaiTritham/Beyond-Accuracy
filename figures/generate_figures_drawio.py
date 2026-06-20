@@ -385,10 +385,9 @@ def make_fig6():
 if __name__ == '__main__':
     pages = [make_fig1(), make_fig2(), make_fig3(), make_fig6()]  # Fig2=archetype, Fig3=pipeline
 
-    outpath = (
-        r'D:\PhD\Manuscript\Manuscript\DigiB_Beyond-Accuracy'
-        r'\DigitalBiomarkers_Submission\Figures\beyond-accuracy-figures.drawio'
-    )
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    outpath = os.path.join(here, 'beyond-accuracy-figures.drawio')
 
     with open(outpath, 'w', encoding='utf-8') as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')

@@ -10,3 +10,11 @@ env/
 .ipynb_checkpoints/
 .DS_Store
 *.log
+
+# Rendered figure outputs (regenerate locally: python figures/generate_figures.py).
+# The repo ships the figure *source* scripts + computed results/, not binaries.
+figures/*.pdf
+figures/*.png
+figures/*.tiff
+figures/*.jpg
+figures/*.drawio
