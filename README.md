@@ -45,6 +45,8 @@ Beyond-Accuracy/
 ## Installation
 
 ```bash
+git clone https://github.com/ChatchaiTritham/Beyond-Accuracy.git
+cd Beyond-Accuracy
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
