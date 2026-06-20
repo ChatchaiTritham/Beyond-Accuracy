@@ -7,24 +7,21 @@ results/eval_results.json (written by run_all.py under seed 42); no metric
 value is hardcoded. Run `python run_all.py` first, then this script.
 """
 import os
-import json
+import sys
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 import numpy as np
 
-# -- Paths: write into the repo figures/ dir; read from results/ -------------
-HERE    = os.path.dirname(os.path.abspath(__file__))
-REPO    = os.path.dirname(HERE)
-RESULTS = os.path.join(REPO, 'results', 'eval_results.json')
+# Shared, byte-identical publication style/util (vendored from _management).
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from pubviz import apply_pub_style, PALETTE, load_results  # noqa: E402
 
-if not os.path.exists(RESULTS):
-    raise FileNotFoundError(
-        f'{RESULTS} not found. Run `python run_all.py` before generating the '
-        'graphical abstract so its findings render from computed results.')
-with open(RESULTS, encoding='utf-8') as fh:
-    R = json.load(fh)
+# -- Paths: write into the repo figures/ dir; read from results/ -------------
+REPO = os.path.dirname(HERE)
+R = load_results('eval_results.json')
 
 # -- Pull real values --------------------------------------------------------
 ece_high    = R['calibration']['ece_by_tier']['High']
@@ -43,38 +40,13 @@ DPI = 300
 W_CM, H_CM = 32, 14
 W_IN, H_IN = W_CM / 2.54, H_CM / 2.54
 
-# -- Canonical Top-Tier figure style (shared across all ChatchaiTritham repos)
-# Color-blind-safe Okabe-Ito palette; serif/Times; 300-dpi PNG + vector PDF.
-# See _management/FIGURE_STYLE.md. This is a single full-canvas schematic, so
-# constrained_layout is disabled to preserve the explicit coordinate layout;
-# the branded box fills are kept (FIGURE_STYLE rule 7) over the shared fonts.
-import matplotlib as mpl
-
-PALETTE = ['#0072B2', '#D55E00', '#009E73', '#CC79A7',
-           '#E69F00', '#56B4E9', '#000000']
-
-
-def apply_pub_style():
-    mpl.rcParams.update({
-        'figure.dpi': 150, 'savefig.dpi': 300, 'savefig.bbox': 'tight',
-        'savefig.pad_inches': 0.02,
-        'font.family': 'serif',
-        'font.serif': ['Times New Roman', 'Times', 'DejaVu Serif'],
-        'mathtext.fontset': 'stix',
-        'font.size': 10, 'axes.titlesize': 11, 'axes.labelsize': 10,
-        'xtick.labelsize': 9, 'ytick.labelsize': 9, 'legend.fontsize': 9,
-        'axes.spines.top': False, 'axes.spines.right': False,
-        'axes.linewidth': 0.8, 'axes.grid': True,
-        'grid.alpha': 0.3, 'grid.linewidth': 0.6,
-        'lines.linewidth': 1.6, 'lines.markersize': 5,
-        'legend.frameon': False, 'figure.constrained_layout.use': True,
-        'axes.prop_cycle': mpl.cycler(color=PALETTE),
-    })
-    mpl.rcParams.update({'pdf.fonttype': 42, 'ps.fonttype': 42})
-
+# Canonical Top-Tier style (shared, vendored in pubviz). This is a single
+# full-canvas schematic, so constrained_layout is disabled to preserve the
+# explicit coordinate layout; branded box fills are kept (FIGURE_STYLE rule 7)
+# over the shared fonts.
+import matplotlib as mpl  # noqa: E402
 
 apply_pub_style()
-# Full-canvas axis('off') schematic: keep the explicit layout intact.
 mpl.rcParams['figure.constrained_layout.use'] = False
 
 # -- Colour palette (branded schematic fills; text/accents map to Okabe-Ito) --

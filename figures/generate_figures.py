@@ -27,14 +27,16 @@ Run:  python figures/generate_figures.py
 """
 
 import os
-import json
+import sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, Circle
-from matplotlib.gridspec import GridSpec
+
+# Shared, byte-identical publication style/util (vendored from _management).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pubviz import apply_pub_style, save_fig, PALETTE, load_results, results_dir  # noqa: E402
 
 # -- Karger column dimensions (mm -> inches, 1 in = 25.4 mm) ------------------
 SINGLE_COL_MM  = 80     # single column
@@ -69,56 +71,18 @@ WH  = '#FFFFFF'
 HERE    = os.path.dirname(os.path.abspath(__file__))
 REPO    = os.path.dirname(HERE)
 OUTDIR  = HERE
-RESULTS = os.path.join(REPO, 'results', 'eval_results.json')
 
-
-def load_results():
-    """Load run_all.py's computed metrics. Fail loudly if absent so the
-    figures can never silently fall back to fabricated values."""
-    if not os.path.exists(RESULTS):
-        raise FileNotFoundError(
-            f'{RESULTS} not found. Run `python run_all.py` before generating '
-            'figures so the data panels render from computed results.')
-    with open(RESULTS, encoding='utf-8') as fh:
-        return json.load(fh)
-
-
-# -- Canonical Top-Tier figure style (shared across all ChatchaiTritham repos)
-# Color-blind-safe Okabe-Ito palette; serif/Times; 300-dpi PNG + vector PDF.
-# See _management/FIGURE_STYLE.md. Data-figure series use this PALETTE; the
-# schematic/architecture diagrams keep their branded box fills (FIGURE_STYLE
-# rule 7) while inheriting the shared fonts and savefig settings.
-import matplotlib as mpl
-
-PALETTE = ['#0072B2', '#D55E00', '#009E73', '#CC79A7',
-           '#E69F00', '#56B4E9', '#000000']
-
-
-def apply_pub_style():
-    mpl.rcParams.update({
-        'figure.dpi': 150, 'savefig.dpi': 300, 'savefig.bbox': 'tight',
-        'savefig.pad_inches': 0.02,
-        'font.family': 'serif',
-        'font.serif': ['Times New Roman', 'Times', 'DejaVu Serif'],
-        'mathtext.fontset': 'stix',
-        'font.size': 10, 'axes.titlesize': 11, 'axes.labelsize': 10,
-        'xtick.labelsize': 9, 'ytick.labelsize': 9, 'legend.fontsize': 9,
-        'axes.spines.top': False, 'axes.spines.right': False,
-        'axes.linewidth': 0.8, 'axes.grid': True,
-        'grid.alpha': 0.3, 'grid.linewidth': 0.6,
-        'lines.linewidth': 1.6, 'lines.markersize': 5,
-        'legend.frameon': False, 'figure.constrained_layout.use': True,
-        'axes.prop_cycle': mpl.cycler(color=PALETTE),
-    })
-    # Project-specific additions kept on top of the canonical base.
-    mpl.rcParams.update({
-        'axes.unicode_minus': True,
-        'pdf.fonttype': 42, 'ps.fonttype': 42,
-        'xtick.direction': 'out', 'ytick.direction': 'out',
-    })
-
+# Canonical Top-Tier style (shared, vendored in pubviz). Data-figure series use
+# the shared Okabe-Ito PALETTE; schematics keep branded box fills over the
+# shared fonts/savefig settings (FIGURE_STYLE rule 7).
+import matplotlib as mpl  # noqa: E402
 
 apply_pub_style()
+# Project-specific additions kept on top of the canonical base.
+mpl.rcParams.update({
+    'axes.unicode_minus': True,
+    'xtick.direction': 'out', 'ytick.direction': 'out',
+})
 
 # Okabe-Ito aliases for the data-figure series (color-blind safe, palette order)
 P_BLUE   = PALETTE[0]   # overall / low
@@ -133,14 +97,9 @@ P_AMBER  = PALETTE[4]
 # ============================================================================
 
 def _save(fig, name):
-    """Save vector PDF + 300-dpi PNG (canonical) into the repo figures/ dir.
-    DPI/bbox come from apply_pub_style() rcParams (savefig.dpi=300, tight)."""
-    for ext, fmt in [('pdf', 'pdf'), ('png', 'png')]:
-        path = os.path.join(OUTDIR, f'{name}.{ext}')
-        fig.savefig(path, format=fmt)
-        kb = os.path.getsize(path) / 1024
-        sfx = ' (300 dpi)' if ext == 'png' else ' (vector)'
-        print(f'  {name}.{ext}   ({kb:,.0f} KB{sfx})')
+    """Save vector PDF + 300-dpi PNG (canonical) into the repo figures/ dir
+    via the shared pubviz.save_fig helper (tight bbox, white bg, 300 dpi)."""
+    save_fig(fig, name, out_dir=OUTDIR)
 
 
 def _shadow_box(ax, cx, cy, w, h, offset=(0.04, -0.04),
@@ -446,96 +405,96 @@ def make_fig3():
 # ============================================================================
 # FIG 4 - Coverage-risk curve  (data: results/eval_results.json)
 #
-# AURC values are read from the computed results. run_all.py stores the scalar
-# AURC (area under the coverage-risk curve) per tier, not the full curve; we
-# render a monotone coverage-risk curve per tier whose area equals the reported
-# AURC and label it with the real value. The operating marker sits at the
-# empirical conformal coverage.
+# Plots the EMPIRICAL coverage-risk curves stored by run_all.py (overall + per
+# tier), with a seeded-bootstrap 95% CI band around the overall curve. The AURC
+# labels are the computed scalars. Selective vs overall FNR (from results) is
+# annotated so the abstention trade-off is explicit.
 # ============================================================================
+def _xy(curve):
+    """Sorted, NaN-dropped (coverage, risk) arrays from a stored curve dict."""
+    cov = np.asarray(curve['coverage'], float)
+    risk = np.array([np.nan if r is None else r for r in curve['risk']], float)
+    m = ~np.isnan(risk)
+    cov, risk = cov[m], risk[m]
+    o = np.argsort(cov)
+    return cov[o], risk[o]
+
+
 def make_fig4(res):
     cr = res['coverage_risk']
     aurc_O = cr['aurc_overall']
     aurc_L = cr['aurc_by_tier']['Low']
     aurc_M = cr['aurc_by_tier']['Medium']
     aurc_H = cr['aurc_by_tier']['High']
+
+    cov_O, risk_O = _xy(cr['curves']['overall'])
+    cov_L, risk_L = _xy(cr['curves']['Low'])
+    cov_M, risk_M = _xy(cr['curves']['Medium'])
+    cov_H, risk_H = _xy(cr['curves']['High'])
+
+    band = cr['bootstrap_band']
+    b_cov = np.asarray(band['coverage'], float)
+    b_lo = np.array([np.nan if v is None else v for v in band['risk_lower']], float)
+    b_hi = np.array([np.nan if v is None else v for v in band['risk_upper']], float)
+    bm = ~(np.isnan(b_lo) | np.isnan(b_hi))
+    ci_pct = int(round(band['ci_level'] * 100))
+    n_boot = band['n_bootstrap']
+
     op_cov = res['conformal']['empirical_coverage']
+    op_risk = float(np.interp(op_cov, cov_O, risk_O))
 
-    cov = np.linspace(0.27, 1.00, 350)
+    # selective vs overall FNR operating points (clarify the abstention trade)
+    fnr_pts = res['coverage_risk']['fnr']['points']
 
-    def _curve(aurc):
-        # Monotone rising risk curve whose mean over cov equals the reported
-        # AURC, so the shaded area reproduces the computed scalar.
-        shape = cov ** 1.3
-        return np.clip(shape / shape.mean() * aurc, 0.0, None)
-
-    risk_O = _curve(aurc_O)
-    risk_L = _curve(aurc_L)
-    risk_M = _curve(aurc_M)
-    risk_H = _curve(aurc_H)
-
-    op_idx  = np.argmin(np.abs(cov - op_cov))
-    op_risk = float(risk_O[op_idx])
+    ymax = max(0.30, float(np.nanmax(risk_H)) * 1.15, float(np.nanmax(b_hi[bm])) * 1.10)
 
     fig, ax = plt.subplots(figsize=(ONEHALF_COL, 3.8))
     fig.patch.set_facecolor(WH)
     _add_grid(ax, axis='both', alpha=0.18)
 
-    ax.axvspan(0.27, 0.52, alpha=0.08, color=BM,  zorder=0)
-    ax.axvspan(0.52, 0.78, alpha=0.06, color=AM,  zorder=0)
-    ax.axvspan(0.78, 1.00, alpha=0.08, color=RD,  zorder=0)
+    # 95% bootstrap CI band around the overall curve
+    ax.fill_between(b_cov[bm], b_lo[bm], b_hi[bm], color=P_BLUE, alpha=0.15,
+                    zorder=1, label=f'Overall {ci_pct}% CI ({n_boot} boot.)')
 
-    for (xc, label, col) in [(0.395, 'Low\nurgency', BD),
-                              (0.650, 'Mixed\ntier',  AM),
-                              (0.890, 'High\nurgency', RD)]:
-        ax.text(xc, 0.54, label, ha='center', va='center',
-                color=col, fontsize=7.0, style='italic', alpha=0.85,
-                zorder=5)
-
-    ax.fill_between(cov, 0, risk_O, alpha=0.08, color=P_BLUE, zorder=1,
-                    label=f'AURC = {aurc_O:.3f} (shaded area)')
-
-    # Color-blind-safe palette + distinct linestyles/markers (FIGURE_STYLE r.5)
-    ax.plot(cov, risk_L, color=P_GREEN, lw=1.5, ls='--', alpha=0.90, zorder=3,
+    # Per-tier empirical curves (color-blind-safe palette + distinct dashes)
+    ax.plot(cov_L, risk_L, color=P_GREEN, lw=1.4, ls='--', alpha=0.90, zorder=3,
             label=f'Low urgency  (AURC = {aurc_L:.3f})')
-    ax.plot(cov, risk_M, color=P_ORANGE, lw=1.5, ls='-.', alpha=0.90, zorder=3,
+    ax.plot(cov_M, risk_M, color=P_ORANGE, lw=1.4, ls='-.', alpha=0.90, zorder=3,
             label=f'Medium urgency  (AURC = {aurc_M:.3f})')
-    ax.plot(cov, risk_H, color=P_PINK, lw=1.5, ls=(0, (1, 1.5)), alpha=0.90,
+    ax.plot(cov_H, risk_H, color=P_PINK, lw=1.4, ls=(0, (1, 1.5)), alpha=0.90,
             zorder=3, label=f'High urgency  (AURC = {aurc_H:.3f})')
-
-    ax.plot(cov, risk_O, color=P_BLUE, lw=2.4, zorder=4,
+    ax.plot(cov_O, risk_O, color=P_BLUE, lw=2.4, zorder=4,
             label=f'Overall  (AURC = {aurc_O:.3f})')
 
+    # operating marker at the empirical conformal coverage
     ax.axvline(op_cov, color=GRD, lw=0.9, ls=':', zorder=6)
     ax.scatter([op_cov], [op_risk], color=P_BLUE, s=50, zorder=8,
                clip_on=False, edgecolors=WH, linewidths=0.8)
     ax.annotate(
         f'conformal\ncov. = {op_cov:.3f}',
         xy=(op_cov, op_risk),
-        xytext=(op_cov - 0.27, op_risk + 0.10),
+        xytext=(op_cov - 0.30, min(op_risk + 0.10, ymax * 0.85)),
         fontsize=7.5, color=GRD,
         arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85),
         zorder=9
     )
 
-    h_pt_cov = 0.90
-    h_pt_idx = np.argmin(np.abs(cov - h_pt_cov))
-    h_pt_risk = float(risk_H[h_pt_idx])
-    ax.annotate(
-        'High-tier risk\ndominates',
-        xy=(h_pt_cov, h_pt_risk),
-        xytext=(0.74, 0.46),
-        fontsize=7.0, color=RD,
-        arrowprops=dict(arrowstyle='->', color=RD, lw=0.85,
-                        connectionstyle='arc3,rad=-0.15'),
-        zorder=9
-    )
+    # Selective vs overall FNR callout (real, from results) -- clarifies that
+    # the curve's "risk" is computed over RETAINED cases, while abstaining
+    # positives shifts overall FNR. Pick the ~0.5-coverage operating point.
+    p = min(fnr_pts, key=lambda d: abs(d['coverage'] - 0.5))
+    ax.text(0.97, 0.04,
+            f'At coverage {p["coverage"]:.2f}:  '
+            f'selective FNR = {p["selective_fnr"]:.2f},  '
+            f'overall FNR = {p["overall_fnr"]:.2f}',
+            transform=ax.transAxes, ha='right', va='bottom',
+            fontsize=6.6, color=GRD, style='italic')
 
     ax.set_xlabel('Coverage (fraction retained)', fontsize=10.0, labelpad=5)
-    ax.set_ylabel(r'Selective risk  $R(\tau)$', fontsize=10.0, labelpad=5)
-    ax.set_xlim(0.25, 1.02)
-    ax.set_ylim(-0.01, 0.57)
-    ax.set_xticks([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
-    ax.set_yticks([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+    ax.set_ylabel(r'Selective risk among retained  $R(c)$',
+                  fontsize=10.0, labelpad=5)
+    ax.set_xlim(0.0, 1.02)
+    ax.set_ylim(-0.01, ymax)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.tick_params(labelsize=8.5)
@@ -546,7 +505,6 @@ def make_fig4(res):
                     handlelength=2.2)
     leg.get_frame().set_linewidth(0.5)
 
-    # constrained_layout is enabled globally; no tight_layout() (they conflict)
     _save(fig, 'fig4_coverage_risk')
     plt.close(fig)
 
@@ -566,9 +524,22 @@ def make_fig5(res):
     harm = res['harm']
     fw = harm['harm_by_tier_framework']
     bl = harm['harm_by_tier_baseline']
+    # Tiers ordered Low->Medium->High to match fig4's coverage-risk ordering.
     tiers   = ['Low', 'Medium', 'High']
-    fw_harm = [fw['low'], fw['medium'], fw['high']]
-    bl_harm = [bl['low'], bl['medium'], bl['high']]
+    keys    = ['low', 'medium', 'high']
+    fw_harm = [fw[k] for k in keys]
+    bl_harm = [bl[k] for k in keys]
+    # Seeded-bootstrap 95% CI -> asymmetric error bars on each bar.
+    fw_ci = harm.get('harm_by_tier_framework_ci', {})
+    bl_ci = harm.get('harm_by_tier_baseline_ci', {})
+
+    def _err(vals, ci):
+        lo = [max(0.0, v - ci[k]['lower']) for v, k in zip(vals, keys)] if ci else None
+        hi = [max(0.0, ci[k]['upper'] - v) for v, k in zip(vals, keys)] if ci else None
+        return np.array([lo, hi]) if ci else None
+
+    fw_err = _err(fw_harm, fw_ci)
+    bl_err = _err(bl_harm, bl_ci)
     reduction_pct = 100.0 * harm['reduction_fraction']
     fw_overall = harm['harm_weighted_loss_framework']
     bl_overall = harm['harm_weighted_loss_baseline']
@@ -593,14 +564,19 @@ def make_fig5(res):
     x     = np.arange(len(tiers))
     width = 0.36
 
+    ebar = dict(ecolor=GRD, elinewidth=0.9, capsize=2.5, capthick=0.9)
     ax_a.bar(x - width / 2, bl_harm, width,
              color=GRL, edgecolor=GRM, linewidth=0.8,
-             hatch='///', label='Accuracy-only baseline', zorder=2)
+             hatch='///', label='Accuracy-only baseline', zorder=2,
+             yerr=bl_err, error_kw=ebar)
     ax_a.bar(x + width / 2, fw_harm, width,
              color=P_BLUE, edgecolor=P_BLUE, linewidth=0.8,
-             label='Framework-guided', zorder=2)
+             label='Framework-guided', zorder=2,
+             yerr=fw_err, error_kw=ebar)
 
-    ymax = max(bl_harm) * 1.18
+    _hi_top = max([(v + (e if e else 0)) for v, e in
+                   zip(bl_harm, (bl_err[1] if bl_err is not None else [0]*3))])
+    ymax = _hi_top * 1.20
     for i, (b, f) in enumerate(zip(bl_harm, fw_harm)):
         if b > 0:
             pct = 100 * (b - f) / b
@@ -964,6 +940,115 @@ def make_fig_s2(res):
 
 
 # ============================================================================
+# FIG 7 - Decision-curve analysis  (data: results/eval_results.json)
+#
+# Net benefit vs threshold probability for the model, treat-all and treat-none
+# reference strategies. Computed in run_all.py directly from the held-out fold
+# (seed 42); nothing is hardcoded. This is the decision-analytic figure the
+# "beyond accuracy" framing requires: it shows the clinical value of acting on
+# the model's probabilities across plausible treatment thresholds.
+# ============================================================================
+def make_fig_dca(res):
+    dca = res['decision_curve']
+    t = np.asarray(dca['thresholds'], float)
+    nb_model = np.asarray(dca['net_benefit_model'], float)
+    nb_all = np.asarray(dca['net_benefit_treat_all'], float)
+    prev = dca['prevalence']
+
+    fig, ax = plt.subplots(figsize=(ONEHALF_COL, 3.6))
+    fig.patch.set_facecolor(WH)
+    _add_grid(ax, axis='both', alpha=0.18)
+
+    ax.axhline(0.0, color=GRM, lw=1.0, ls='-', alpha=0.7, zorder=2,
+               label='Treat none')
+    ax.plot(t, nb_all, color=P_ORANGE, lw=1.5, ls='--', zorder=3,
+            label='Treat all')
+    ax.plot(t, nb_model, color=P_BLUE, lw=2.4, zorder=4,
+            label='Framework (model-guided)')
+
+    # mark the framework operating threshold for the high-urgency tier (0.30)
+    op_t = res['meta']['tier_threshold']['high']
+    op_nb = float(np.interp(op_t, t, nb_model))
+    ax.axvline(op_t, color=GRD, lw=0.9, ls=':', zorder=5)
+    ax.scatter([op_t], [op_nb], color=P_BLUE, s=45, zorder=8,
+               edgecolors=WH, linewidths=0.8, clip_on=False)
+    ax.annotate(
+        f'high-urgency\nthreshold = {op_t:.2f}\nNB = {op_nb:.3f}',
+        xy=(op_t, op_nb), xytext=(op_t + 0.07, op_nb - 0.14),
+        fontsize=7.0, color=GRD,
+        arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85), zorder=9)
+
+    ax.set_xlabel('Threshold probability  $p_t$', fontsize=10.0, labelpad=5)
+    ax.set_ylabel('Net benefit', fontsize=10.0, labelpad=5)
+    ax.set_xlim(t.min(), t.max())
+    ax.set_ylim(min(-0.02, float(nb_all.min()) * 1.05),
+                float(max(nb_model.max(), prev)) * 1.12)
+    ax.tick_params(labelsize=8.5)
+    leg = ax.legend(loc='lower left', fontsize=7.5,
+                    framealpha=0.95, edgecolor=GRL, borderpad=0.6)
+    leg.get_frame().set_linewidth(0.5)
+
+    _save(fig, 'fig7_decision_curve')
+    plt.close(fig)
+
+
+# ============================================================================
+# FIG 8 - Reliability diagram  (data: results/eval_results.json)
+#
+# Predicted probability vs observed frequency by bin, with the computed ECE
+# annotated. Bins and ECE are produced by run_all.py from the repo's own
+# reliability_curve()/ECE, so the diagram and the reported ECE are consistent.
+# ============================================================================
+def make_fig_reliability(res):
+    rel = res['calibration']['reliability_overall']
+    conf = np.asarray(rel['bin_confidence'], float)
+    acc = np.asarray(rel['bin_accuracy'], float)
+    cnt = np.asarray(rel['bin_count'], float)
+    ece = rel['ece']
+
+    fig, ax = plt.subplots(figsize=(SINGLE_COL * 1.45, 3.6))
+    fig.patch.set_facecolor(WH)
+    _add_grid(ax, axis='both', alpha=0.18)
+
+    # perfect-calibration diagonal
+    ax.plot([0, 1], [0, 1], color=GRM, lw=1.0, ls='--', zorder=2,
+            label='Perfect calibration')
+
+    # gap bars (predicted - observed) as light shading under the curve markers
+    for c, a in zip(conf, acc):
+        ax.plot([c, c], [c, a], color=RD, lw=1.0, alpha=0.45, zorder=3)
+
+    # marker size scaled by bin count (more mass = larger), real counts
+    smax = cnt.max() if cnt.size else 1.0
+    sizes = 30 + 120 * (cnt / smax)
+    ax.plot(conf, acc, color=P_BLUE, lw=1.8, zorder=4,
+            label='Observed (per bin)')
+    ax.scatter(conf, acc, s=sizes, color=P_BLUE, edgecolors=WH,
+               linewidths=0.8, zorder=5)
+
+    ax.text(0.04, 0.96, f'ECE = {ece:.3f}',
+            transform=ax.transAxes, ha='left', va='top',
+            fontsize=9.0, color=GRD, fontweight='bold')
+    ax.text(0.04, 0.88, 'marker area $\\propto$ bin count;\n'
+            'red stems = calibration gap',
+            transform=ax.transAxes, ha='left', va='top',
+            fontsize=6.6, color=GRM, style='italic')
+
+    ax.set_xlabel('Mean predicted probability', fontsize=10.0, labelpad=5)
+    ax.set_ylabel('Observed frequency', fontsize=10.0, labelpad=5)
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.set_aspect('equal', adjustable='box')
+    ax.tick_params(labelsize=8.5)
+    leg = ax.legend(loc='lower right', fontsize=7.5,
+                    framealpha=0.95, edgecolor=GRL, borderpad=0.6)
+    leg.get_frame().set_linewidth(0.5)
+
+    _save(fig, 'fig8_reliability')
+    plt.close(fig)
+
+
+# ============================================================================
 if __name__ == '__main__':
     print('=' * 60)
     print('  Beyond Accuracy - Figure Generation')
@@ -971,7 +1056,7 @@ if __name__ == '__main__':
     print('=' * 60)
     print()
 
-    res = load_results()
+    res = load_results('eval_results.json')
     os.makedirs(OUTDIR, exist_ok=True)
 
     make_fig1()
@@ -981,10 +1066,12 @@ if __name__ == '__main__':
     make_fig5(res)
     make_fig6()
     make_fig_s2(res)
+    make_fig_dca(res)
+    make_fig_reliability(res)
 
     print()
     print('=' * 60)
-    print('  All 7 figures generated (PDF + PNG)')
+    print('  All 9 figures generated (PDF + PNG)')
     print(f'  Output: {OUTDIR}')
     print('  Data panels (fig4, fig5) and the fig-s1 verdict band')
     print('  are rendered from results/, not hardcoded.')
