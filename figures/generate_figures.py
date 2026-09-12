@@ -38,17 +38,20 @@ from matplotlib.patches import FancyBboxPatch, Circle
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pubviz import apply_pub_style, save_fig, PALETTE, load_results, results_dir  # noqa: E402
 
-# -- Karger column dimensions (mm -> inches, 1 in = 25.4 mm) ------------------
-SINGLE_COL_MM  = 80     # single column
-ONEHALF_COL_MM = 120    # 1.5-column
-DOUBLE_COL_MM  = 170    # double column (full width)
+# -- Springer sn-jnl page geometry (mm -> inches, 1 in = 25.4 mm) -------------
+# The journal is single-column; \the\textwidth measures 372 pt = 131.2 mm.
+# FULL_COL is that text block, so a figure drawn at it and included at
+# \linewidth is never rescaled and keeps the type size it is set at.
+SINGLE_COL_MM  = 70     # a half-width inset
+ONEHALF_COL_MM = 105    # a wide inset
+DOUBLE_COL_MM  = 131.2  # the full text block
 
 def mm2in(mm):
     return mm / 25.4
 
-SINGLE_COL  = mm2in(SINGLE_COL_MM)    # ~3.15 in
-ONEHALF_COL = mm2in(ONEHALF_COL_MM)   # ~4.72 in
-DOUBLE_COL  = mm2in(DOUBLE_COL_MM)    # ~6.69 in
+SINGLE_COL  = mm2in(SINGLE_COL_MM)    # 2.76 in
+ONEHALF_COL = mm2in(ONEHALF_COL_MM)   # 4.13 in
+DOUBLE_COL  = mm2in(DOUBLE_COL_MM)    # 5.17 in = 372 pt
 
 # -- Colour palette ----------------------------------------------------------
 # All colours verified for WCAG AA contrast against white background
@@ -158,7 +161,7 @@ def _arrow(ax, x0, y0, x1, y1, col=GRD, lw=1.5, ms=14):
     )
 
 
-def _badge(ax, cx, cy, r, num, bg=BD, fg=WH, fs=7.5):
+def _badge(ax, cx, cy, r, num, bg=BD, fg=WH, fs=8.0):
     """Filled circle 'badge' with a number inside."""
     shadow = Circle((cx + 0.02, cy - 0.02), r,
                     facecolor='#00000015', edgecolor='none',
@@ -234,7 +237,7 @@ def make_fig1():
 
     ax.text(5.85, 1.78,
             'Uncertainty as Control Signal (escalation · abstention)',
-            ha='center', va='center', fontsize=7.0, color='#C0D8F0',
+            ha='center', va='center', fontsize=8.0, color='#C0D8F0',
             style='italic', zorder=5)
 
     ax.text(5.85, 4.35, 'Governance Paradigm',
@@ -313,7 +316,7 @@ def make_fig2():
 
     for i, (cx, lines, fc, ec, tc) in enumerate(stages):
         _box(ax, cx, cy, bw, bh, lines, fc=fc, ec=ec, tc=tc,
-             fs=7.2, lc=1.28, shadow=True)
+             fs=8.0, lc=1.28, shadow=True)
         _badge(ax, cx, cy + bh / 2 + 0.20, 0.18,
                i + 1, bg=badge_colours[i])
         if i < len(stages) - 1:
@@ -330,7 +333,7 @@ def make_fig2():
         (x0 + 5 * step,  'Verdict',      GD),
     ]
     for xc, label, col in phase_labels:
-        ax.text(xc, 2.94, label, ha='center', fontsize=7.0,
+        ax.text(xc, 2.94, label, ha='center', fontsize=8.0,
                 color=col, style='italic', fontweight='bold')
 
     _save(fig, 'fig3-pipeline')
@@ -386,7 +389,7 @@ def make_fig3():
 
     for i, (cx, lines, fc, ec, tc) in enumerate(stages):
         _box(ax, cx, cy, bw, bh, lines, fc=fc, ec=ec, tc=tc,
-             fs=7.6, lc=1.28, shadow=True)
+             fs=8.0, lc=1.28, shadow=True)
         _badge(ax, cx, cy + bh / 2 + 0.18, 0.17,
                i + 1, bg=badge_bg[i])
         if i < len(stages) - 1:
@@ -474,7 +477,7 @@ def make_fig4(res):
         f'conformal\ncov. = {op_cov:.3f}',
         xy=(op_cov, op_risk),
         xytext=(op_cov - 0.30, min(op_risk + 0.10, ymax * 0.85)),
-        fontsize=7.5, color=GRD,
+        fontsize=8.0, color=GRD,
         arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85),
         zorder=9
     )
@@ -488,7 +491,7 @@ def make_fig4(res):
             f'selective FNR = {p["selective_fnr"]:.2f},  '
             f'overall FNR = {p["overall_fnr"]:.2f}',
             transform=ax.transAxes, ha='right', va='bottom',
-            fontsize=6.6, color=GRD, style='italic')
+            fontsize=8.0, color=GRD, style='italic')
 
     ax.set_xlabel('Coverage (fraction retained)', fontsize=10.0, labelpad=5)
     ax.set_ylabel(r'Selective risk among retained  $R(c)$',
@@ -499,7 +502,7 @@ def make_fig4(res):
     ax.spines['right'].set_visible(False)
     ax.tick_params(labelsize=8.5)
 
-    leg = ax.legend(loc='upper left', fontsize=7.0,
+    leg = ax.legend(loc='upper left', fontsize=8.0,
                     framealpha=0.95, edgecolor=GRL,
                     borderpad=0.65, labelspacing=0.40,
                     handlelength=2.2)
@@ -582,14 +585,14 @@ def make_fig5(res):
             pct = 100 * (b - f) / b
             ax_a.text(x[i] + width / 2, f + ymax * 0.02,
                       f'-{pct:.0f}%',
-                      ha='center', va='bottom', fontsize=7.5,
+                      ha='center', va='bottom', fontsize=8.0,
                       color=GD, fontweight='bold')
 
     ax_a.text(0.97, 0.97,
               f'Overall harm-weighted loss\n'
               f'{bl_overall:.3f} -> {fw_overall:.3f}  (-{reduction_pct:.1f}%)',
               transform=ax_a.transAxes, ha='right', va='top',
-              fontsize=7.0, color=GRD, style='italic', linespacing=1.30)
+              fontsize=8.0, color=GRD, style='italic', linespacing=1.30)
 
     ax_a.set_xticks(x)
     ax_a.set_xticklabels(tiers, fontsize=9.0)
@@ -598,7 +601,7 @@ def make_fig5(res):
                     fontsize=10.0, labelpad=4)
     ax_a.set_ylim(0, ymax)
     ax_a.set_xlim(-0.55, 2.85)
-    leg_a = ax_a.legend(loc='upper left', fontsize=7.0,
+    leg_a = ax_a.legend(loc='upper left', fontsize=8.0,
                         framealpha=0.95, edgecolor=GRL, borderpad=0.5)
     leg_a.get_frame().set_linewidth(0.5)
     ax_a.text(-0.08, 1.03, '(a)', transform=ax_a.transAxes,
@@ -632,7 +635,7 @@ def make_fig5(res):
     ax_b.set_ylim(0, max(max(ece_vals), eta_xai) * 1.12)
     ax_b.set_xlim(-0.60, 2.60)
 
-    leg_b = ax_b.legend(loc='upper left', fontsize=7.0,
+    leg_b = ax_b.legend(loc='upper left', fontsize=8.0,
                         framealpha=0.95, edgecolor=GRL, borderpad=0.5)
     leg_b.get_frame().set_linewidth(0.5)
     ax_b.text(-0.08, 1.03, '(b)', transform=ax_b.transAxes,
@@ -695,7 +698,7 @@ def make_fig6():
 
     ax.text(0.40, 0.94,
             'Simulation-based evaluation zone  (no patient-level data required)',
-            ha='center', va='top', fontsize=7.0, fontstyle='italic',
+            ha='center', va='top', fontsize=8.0, fontstyle='italic',
             color=GD, zorder=6)
 
     ax.annotate(
@@ -709,7 +712,7 @@ def make_fig6():
     )
 
     ax.text(0.08, cy - 0.10, 'Sensor specs\nDevice testing',
-            ha='center', va='center', fontsize=7.0, color=GRM, zorder=4)
+            ha='center', va='center', fontsize=8.0, color=GRM, zorder=4)
 
     inner_items = [
         r'$\mathcal{P}$: 4 perturbation operators',
@@ -718,17 +721,17 @@ def make_fig6():
     ]
     for i, txt in enumerate(inner_items):
         ax.text(0.40, cy - 0.03 - i * 0.050, txt,
-                ha='center', va='center', fontsize=7.0, color=GD,
+                ha='center', va='center', fontsize=8.0, color=GD,
                 fontweight='medium', zorder=4)
 
     ax.text(0.74, cy - 0.10, 'Real patient data\nProspective trials',
-            ha='center', va='center', fontsize=7.0, color=GRM, zorder=4)
+            ha='center', va='center', fontsize=8.0, color=GRM, zorder=4)
 
     bot = cy - bh/2
     mid1 = (0.08 + 0.22/2 + 0.02 + 0.40 - 0.26/2 - 0.02) / 2
     ax.annotate('Archetype\nspec',
                 xy=(mid1, bot - 0.01), xytext=(mid1, 0.10),
-                ha='center', va='center', fontsize=7.0, color=BD,
+                ha='center', va='center', fontsize=8.0, color=BD,
                 arrowprops=dict(arrowstyle='->', color=BD, lw=0.8,
                                 linestyle='dashed'),
                 zorder=5)
@@ -736,14 +739,14 @@ def make_fig6():
     mid2 = (0.40 + 0.26/2 + 0.02 + 0.74 - 0.22/2 - 0.02) / 2
     ax.annotate('Protocol\ncard',
                 xy=(mid2, bot - 0.01), xytext=(mid2, 0.10),
-                ha='center', va='center', fontsize=7.0, color=AM,
+                ha='center', va='center', fontsize=8.0, color=AM,
                 arrowprops=dict(arrowstyle='->', color=AM, lw=0.8,
                                 linestyle='dashed'),
                 zorder=5)
 
     ax.text(0.50, 0.01,
             'V3 Digital Biomarker Development Lifecycle (Goldsack et al. 2020)',
-            ha='center', va='bottom', fontsize=7.5, color=GRM,
+            ha='center', va='bottom', fontsize=8.0, color=GRM,
             fontstyle='italic', zorder=6)
 
     _save(fig, 'fig6-v3-lifecycle')
@@ -798,7 +801,7 @@ def make_fig_s2(res):
 
     ax.text(0.50, 0.975,
             'Simulation-based evaluation zone  (no patient-level data required)',
-            ha='center', va='center', fontsize=7.0, fontstyle='italic',
+            ha='center', va='center', fontsize=8.0, fontstyle='italic',
             color=GD, zorder=6)
     ax.annotate('THIS FRAMEWORK',
                 xy=(0.50, s1_cy + s1_bh/2 + 0.006),
@@ -814,7 +817,7 @@ def make_fig_s2(res):
         facecolor=GD, alpha=0.04, edgecolor=GD,
         linewidth=1.0, linestyle='--', zorder=1))
 
-    def sbox(cx, cy, bw, bh, label, fc, ec, fs=7.5):
+    def sbox(cx, cy, bw, bh, label, fc, ec, fs=8.0):
         ax.add_patch(FancyBboxPatch(
             (cx - bw/2, cy - bh/2), bw, bh,
             boxstyle='round,pad=0.010', facecolor=fc, edgecolor=ec,
@@ -842,7 +845,7 @@ def make_fig_s2(res):
                f'\n{n_scenarios} synthetic scenarios',  GD, GL),
     ]
     for cx, lbl, ec, fc in row_a:
-        sbox(cx, ra_y, 0.23, ra_h, lbl, fc, ec, fs=7.5)
+        sbox(cx, ra_y, 0.23, ra_h, lbl, fc, ec, fs=8.0)
 
     ax.annotate('', xy=(0.50 - 0.115 - 0.014, ra_y),
                 xytext=(0.12 + 0.115 + 0.014, ra_y),
@@ -867,7 +870,7 @@ def make_fig_s2(res):
         (0.91, r'$\hat{C}_\alpha$' + '\nConf. coverage'),
     ]
     for cx, lbl in metrics:
-        sbox(cx, rb_y, 0.155, rb_h, lbl, GL, GD, fs=7.0)
+        sbox(cx, rb_y, 0.155, rb_h, lbl, GL, GD, fs=8.0)
 
     down_arrow(rb_y - rb_h/2 - 0.002, rb_y - rb_h/2 - 0.030)
 
@@ -883,12 +886,12 @@ def make_fig_s2(res):
         (0.83, RD, RL,  'Reject\n$G \\leq 0.40$'),
     ]
     for cx, ec, fc, lbl in verdicts:
-        sbox(cx, rc_y, 0.28, rc_h, lbl, fc, ec, fs=7.5)
+        sbox(cx, rc_y, 0.28, rc_h, lbl, fc, ec, fs=8.0)
 
     failed = ', '.join(gov.get('failed_gates', []))
     ax.text(0.50, rc_y - rc_h/2 - 0.008,
             f'{gov["n_passed"]}/5 gates pass; failed: {failed}',
-            ha='center', va='top', fontsize=7.0, color=AM,
+            ha='center', va='top', fontsize=8.0, color=AM,
             fontstyle='italic', zorder=4)
 
     down_arrow(rc_y - rc_h/2 - 0.036, rc_y - rc_h/2 - 0.062)
@@ -906,7 +909,7 @@ def make_fig_s2(res):
         (0.88, 'Conformal\nBound $\\hat{C}_{0.10}$', BM, BL),
     ]
     for cx, lbl, ec, fc in artefacts:
-        sbox(cx, rd_y, 0.21, rd_h, lbl, fc, ec, fs=7.0)
+        sbox(cx, rd_y, 0.21, rd_h, lbl, fc, ec, fs=8.0)
 
     bot  = s1_cy - s1_bh/2
     mid1 = (0.10 + 0.085 + 0.015 + 0.50 - 0.13 - 0.015) / 2
@@ -915,12 +918,12 @@ def make_fig_s2(res):
 
     ax.annotate('Archetype spec',
                 xy=(mid1, bot - 0.004), xytext=(mid1, lbl_y),
-                ha='center', va='top', fontsize=7.0, color=BD,
+                ha='center', va='top', fontsize=8.0, color=BD,
                 arrowprops=dict(arrowstyle='->', color=BD, lw=0.9,
                                 linestyle='dashed'), zorder=6)
     ax.annotate('Protocol card',
                 xy=(mid2, bot - 0.004), xytext=(mid2, lbl_y),
-                ha='center', va='top', fontsize=7.0, color=AM,
+                ha='center', va='top', fontsize=8.0, color=AM,
                 arrowprops=dict(arrowstyle='->', color=AM, lw=0.9,
                                 linestyle='dashed'), zorder=6)
 
@@ -933,7 +936,7 @@ def make_fig_s2(res):
             'Regulatory alignment:  DECIDE-AI (Stages 1-2)  ·  '
             'EU AI Act Art. 9, 13, 14  ·  '
             'FDA GMLP Principle 6  ·  ISO 14971 Cl. 5',
-            ha='center', va='center', fontsize=7.0, color=BD, zorder=4)
+            ha='center', va='center', fontsize=8.0, color=BD, zorder=4)
 
     _save(fig, 'fig-s1-lifecycle-detail')
     plt.close(fig)
@@ -975,7 +978,7 @@ def make_fig_dca(res):
     ax.annotate(
         f'high-urgency\nthreshold = {op_t:.2f}\nNB = {op_nb:.3f}',
         xy=(op_t, op_nb), xytext=(op_t + 0.07, op_nb - 0.14),
-        fontsize=7.0, color=GRD,
+        fontsize=8.0, color=GRD,
         arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85), zorder=9)
 
     ax.set_xlabel('Threshold probability  $p_t$', fontsize=10.0, labelpad=5)
@@ -984,7 +987,7 @@ def make_fig_dca(res):
     ax.set_ylim(min(-0.02, float(nb_all.min()) * 1.05),
                 float(max(nb_model.max(), prev)) * 1.12)
     ax.tick_params(labelsize=8.5)
-    leg = ax.legend(loc='lower left', fontsize=7.5,
+    leg = ax.legend(loc='lower left', fontsize=8.0,
                     framealpha=0.95, edgecolor=GRL, borderpad=0.6)
     leg.get_frame().set_linewidth(0.5)
 
@@ -1032,7 +1035,7 @@ def make_fig_reliability(res):
     ax.text(0.04, 0.88, 'marker area $\\propto$ bin count;\n'
             'red stems = calibration gap',
             transform=ax.transAxes, ha='left', va='top',
-            fontsize=6.6, color=GRM, style='italic')
+            fontsize=8.0, color=GRM, style='italic')
 
     ax.set_xlabel('Mean predicted probability', fontsize=10.0, labelpad=5)
     ax.set_ylabel('Observed frequency', fontsize=10.0, labelpad=5)
@@ -1040,7 +1043,7 @@ def make_fig_reliability(res):
     ax.set_ylim(-0.02, 1.02)
     ax.set_aspect('equal', adjustable='box')
     ax.tick_params(labelsize=8.5)
-    leg = ax.legend(loc='lower right', fontsize=7.5,
+    leg = ax.legend(loc='lower right', fontsize=8.0,
                     framealpha=0.95, edgecolor=GRL, borderpad=0.6)
     leg.get_frame().set_linewidth(0.5)
 
