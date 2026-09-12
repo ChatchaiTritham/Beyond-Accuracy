@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Beyond-Accuracy: Simulation-Based Safety Evaluation for Decision-Support Classifiers"
+abstract: >-
+  Companion code that recomputes, from a single fixed seed, the safety-behaviour
+  metrics and the deployment verdict reported for the Beyond-Accuracy study. The
+  repository contains the reference implementation, a deterministic seed-42
+  driver that regenerates every reported metric to committed CSVs, and the
+  figure generators.
+type: software
+authors:
+  - given-names: Chatchai
+    family-names: Tritham
+    email: chatchait66@nu.ac.th
+    orcid: "https://orcid.org/0000-0001-7899-228X"
+    affiliation: >-
+      Department of Computer Science and Information Technology, Faculty of
+      Science, Naresuan University, Phitsanulok 65000, Thailand
+  - given-names: Chakkrit Snae
+    family-names: Namahoot
+    email: chakkrits@nu.ac.th
+    orcid: "https://orcid.org/0000-0003-4660-4590"
+    affiliation: >-
+      Department of Computer Science and Information Technology, Faculty of
+      Science, Naresuan University, Phitsanulok 65000, Thailand
+license: MIT
+repository-code: "https://github.com/ChatchaiTritham/Beyond-Accuracy"
+version: 1.0.0
+keywords:
+  - clinical decision support systems
+  - beyond-accuracy evaluation
+  - safety behaviour metrics
+  - simulation-based evaluation
+  - deployment readiness
+  - patient safety
