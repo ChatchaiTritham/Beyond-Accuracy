@@ -1,0 +1,2 @@
+n_deployments,n_with_selection,violations,violation_rate,delta,alpha_risk,mean_heldout_fnr,mean_alert_rate_high_tier,p95_heldout_fnr,guarantee_holds,seed
+1000,1000,59,0.059,0.1,0.05,0.005051217440381032,0.956306747719597,0.050856105153925975,True,42
