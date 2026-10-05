@@ -120,7 +120,32 @@ def run_seed(X, y, tiers, seed: int) -> list[dict]:
             "harm_loss": float(weighted_harm_loss(y[te], pred, tier_lc, run_all.HARM_WEIGHTS)),
             "fnr_high_at_0.5": fnr_at_threshold(y[te], p_te, 0.5, high_te),
         })
+        rows[-1].update(tier_harm(y[te], pred, tier_lc))
     return rows
+
+
+def tier_harm(y_true, pred, tier_lc) -> dict:
+    """Error rate and weighted harm contribution within each risk tier.
+
+    ``harm_{tier}`` is the tier's share of the cohort-level weighted harm loss, so the three
+    add up to ``harm_loss``; ``err_{tier}`` is the plain error rate inside the tier, which is
+    what shows whether the weighting is doing the work or the errors really are concentrated.
+    ``harm_concentration`` is the high tier's share of total harm.
+    """
+    import numpy as _np
+    wrong = (pred != y_true)
+    n = len(y_true)
+    out, total = {}, 0.0
+    for tier in ("low", "medium", "high"):
+        m = tier_lc == tier
+        w = run_all.HARM_WEIGHTS[tier]
+        contrib = float(_np.sum(wrong[m]) * w / n) if m.any() else float("nan")
+        out[f"err_{tier}"] = float(wrong[m].mean()) if m.any() else float("nan")
+        out[f"harm_{tier}"] = contrib
+        if contrib == contrib:
+            total += contrib
+    out["harm_concentration"] = out["harm_high"] / total if total > 0 else float("nan")
+    return out
 
 
 def certified_net_benefit(X, y, tiers, seed: int) -> list[dict]:
@@ -196,7 +221,9 @@ def main() -> None:
     import collections
     agg = collections.defaultdict(list)
     metrics = ["accuracy", "ece_overall", "ece_high", "aurc_overall", "aurc_high",
-               "harm_loss", "fnr_high_at_0.5"]
+               "harm_loss", "fnr_high_at_0.5",
+               "err_low", "err_medium", "err_high",
+               "harm_low", "harm_medium", "harm_high", "harm_concentration"]
     for r in rows:
         for m in metrics:
             agg[(r["model"], m)].append(r[m])
@@ -208,6 +235,25 @@ def main() -> None:
                         "sd": round(float(v.std(ddof=1)), 4),
                         "min": round(float(v.min()), 4), "max": round(float(v.max()), 4)})
     write(summary, "model_seed_summary.csv")
+
+    # per-tier harm, one row per family and tier, so the table can be read directly
+    tier_rows = []
+    for model in FAMILIES:
+        for tier in ("low", "medium", "high"):
+            e = np.array([r[f"err_{tier}"] for r in rows if r["model"] == model], dtype=float)
+            h = np.array([r[f"harm_{tier}"] for r in rows if r["model"] == model], dtype=float)
+            tier_rows.append({"model": model, "tier": tier, "n_seeds": len(e),
+                              "harm_weight": run_all.HARM_WEIGHTS[tier],
+                              "error_rate_mean": round(float(e.mean()), 4),
+                              "error_rate_sd": round(float(e.std(ddof=1)), 4),
+                              "harm_contrib_mean": round(float(h.mean()), 4),
+                              "harm_contrib_sd": round(float(h.std(ddof=1)), 4)})
+    write(tier_rows, "harm_by_tier.csv")
+
+    print("\nharm concentration in the High tier (share of weighted harm):")
+    for s_ in sorted([s_ for s_ in summary if s_["metric"] == "harm_concentration"],
+                     key=lambda d: -d["mean"]):
+        print(f"  {s_['model']:22} {s_['mean']:.3f} +/- {s_['sd']:.3f}")
 
     print("\nECE (overall) by family:")
     for s in sorted([s for s in summary if s["metric"] == "ece_overall"],
