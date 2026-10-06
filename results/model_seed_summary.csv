@@ -83,3 +83,17 @@ uncalibrated_forest,harm_low,20,0.0238,0.0033,0.0173,0.0313
 uncalibrated_forest,harm_medium,20,0.1254,0.0163,0.092,0.156
 uncalibrated_forest,harm_high,20,0.616,0.0555,0.4933,0.72
 uncalibrated_forest,harm_concentration,20,0.8046,0.0212,0.7714,0.8566
+mlp_calibrated,accuracy,20,0.8475,0.0094,0.832,0.8647
+mlp_calibrated,ece_overall,20,0.0576,0.0119,0.0372,0.0748
+mlp_calibrated,ece_high,20,0.0509,0.0166,0.0234,0.098
+mlp_calibrated,aurc_overall,20,0.1664,0.0121,0.136,0.1876
+mlp_calibrated,aurc_high,20,0.2226,0.0243,0.1693,0.2601
+mlp_calibrated,harm_loss,20,0.9156,0.0611,0.7913,1.0027
+mlp_calibrated,fnr_high_at_0.5,20,0.2564,0.0255,0.2125,0.3111
+mlp_calibrated,err_low,20,0.0855,0.0117,0.0713,0.1171
+mlp_calibrated,err_medium,20,0.1502,0.0153,0.1227,0.1886
+mlp_calibrated,err_high,20,0.2234,0.0177,0.1914,0.249
+mlp_calibrated,harm_low,20,0.0287,0.0042,0.0233,0.0407
+mlp_calibrated,harm_medium,20,0.1506,0.0146,0.12,0.186
+mlp_calibrated,harm_high,20,0.7363,0.056,0.6267,0.8267
+mlp_calibrated,harm_concentration,20,0.8038,0.0164,0.7789,0.8256

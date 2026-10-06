@@ -65,6 +65,13 @@ FAMILIES = {
         method="sigmoid", cv=3),
     "uncalibrated_forest": lambda s: RandomForestClassifier(
         n_estimators=300, max_depth=12, random_state=s, n_jobs=-1),
+    # the same MLP with Platt scaling: one scalar fitted on held-out folds, which is what
+    # temperature scaling does. Without this arm the MLP's calibration error cannot be told
+    # apart from the absence of any calibration step.
+    "mlp_calibrated": lambda s: CalibratedClassifierCV(
+        make_pipeline(StandardScaler(), MLPClassifier(hidden_layer_sizes=(64, 32),
+                                                      max_iter=800, random_state=s)),
+        method="sigmoid", cv=3),
 }
 
 
@@ -178,6 +185,9 @@ def certified_net_benefit(X, y, tiers, seed: int) -> list[dict]:
             if lam is not None:
                 nb = net_benefit(y_h, (p_h >= lam).astype(int), thr)
                 row[f"nb_certified_{thr_name}"] = round(nb, 4)
+                # the paired difference is the quantity the claim rests on; keeping it per
+                # seed is what lets an interval be formed instead of quoting a point estimate
+                row[f"nb_delta_{thr_name}"] = round(nb - treat_all, 4)
                 row[f"nb_gain_over_treat_all_{thr_name}"] = round(nb - treat_all, 4)
             else:
                 row[f"nb_certified_{thr_name}"] = float("nan")
@@ -249,6 +259,32 @@ def main() -> None:
                               "harm_contrib_mean": round(float(h.mean()), 4),
                               "harm_contrib_sd": round(float(h.std(ddof=1)), 4)})
     write(tier_rows, "harm_by_tier.csv")
+
+    # net benefit over treat-all: mean and a percentile interval across seeds, per family
+    nb_rows_out = []
+    for model in FAMILIES:
+        for thr_name in ("at_0.05", "at_0.20", "at_0.50"):
+            key = f"nb_delta_{thr_name}"
+            vals = np.array([r[key] for r in nb_rows
+                             if r["model"] == model and key in r], dtype=float)
+            vals = vals[np.isfinite(vals)]
+            if len(vals) < 2:
+                continue
+            nb_rows_out.append({
+                "model": model, "threshold": thr_name, "n_seeds": len(vals),
+                "delta_mean": round(float(vals.mean()), 4),
+                "delta_sd": round(float(vals.std(ddof=1)), 4),
+                "delta_p2.5": round(float(np.percentile(vals, 2.5)), 4),
+                "delta_p97.5": round(float(np.percentile(vals, 97.5)), 4),
+                "seeds_with_gain": int((vals > 0).sum())})
+    if nb_rows_out:
+        write(nb_rows_out, "net_benefit_interval.csv")
+
+    print("\nnet benefit over treat-all at threshold 0.20 (mean [2.5, 97.5] over seeds):")
+    for r in [r for r in nb_rows_out if r["threshold"] == "at_0.20"]:
+        print(f"  {r['model']:22} {r['delta_mean']:+.4f} "
+              f"[{r['delta_p2.5']:+.4f}, {r['delta_p97.5']:+.4f}]  "
+              f"gain in {r['seeds_with_gain']}/{r['n_seeds']} seeds")
 
     print("\nharm concentration in the High tier (share of weighted harm):")
     for s_ in sorted([s_ for s_ in summary if s_["metric"] == "harm_concentration"],

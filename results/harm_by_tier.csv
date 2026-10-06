@@ -17,3 +17,6 @@ svm_rbf,high,20,10.0,0.185,0.016,0.61,0.0514
 uncalibrated_forest,low,20,1.0,0.071,0.0094,0.0238,0.0033
 uncalibrated_forest,medium,20,3.0,0.1249,0.0162,0.1254,0.0163
 uncalibrated_forest,high,20,10.0,0.1869,0.0175,0.616,0.0555
+mlp_calibrated,low,20,1.0,0.0855,0.0117,0.0287,0.0042
+mlp_calibrated,medium,20,3.0,0.1502,0.0153,0.1506,0.0146
+mlp_calibrated,high,20,10.0,0.2234,0.0177,0.7363,0.056
