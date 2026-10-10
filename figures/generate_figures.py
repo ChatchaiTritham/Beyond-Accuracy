@@ -620,7 +620,7 @@ def make_fig6():
     stages = [
         ('Verification',           0.08, cy, 0.22, bh, BL,  BD),
         ('Analytical\nValidation', 0.40, cy, 0.26, bh, GL,  GD),
-        ('Clinical\nValidation',   0.74, cy, 0.22, bh, AL,  AM),
+        ('Prospective\nValidation', 0.74, cy, 0.22, bh, AL,  AM),
     ]
 
     for label, cx, _, bw, bh_, fc, ec in stages:
@@ -655,7 +655,7 @@ def make_fig6():
     ax.add_patch(sim_zone)
 
     ax.text(0.40, 0.94,
-            'Simulation-based evaluation zone  (no patient-level data required)',
+            'Simulation-based evaluation zone  (no real-world labelled data required)',
             ha='center', va='top', fontsize=8.0, fontstyle='italic',
             color=GD, zorder=6)
 
@@ -682,7 +682,7 @@ def make_fig6():
                 ha='center', va='center', fontsize=8.0, color=GD,
                 fontweight='medium', zorder=4)
 
-    ax.text(0.74, cy - 0.10, 'Real patient data\nProspective trials',
+    ax.text(0.74, cy - 0.10, 'Real-world data\nProspective trials',
             ha='center', va='center', fontsize=8.0, color=GRM, zorder=4)
 
     bot = cy - bh/2
@@ -754,7 +754,7 @@ def make_fig_s2(res):
                 arrowprops=arr_kw, zorder=5)
 
     ax.text(0.50, 0.975,
-            'Simulation-based evaluation zone  (no patient-level data required)',
+            'Simulation-based evaluation zone  (no real-world labelled data required)',
             ha='center', va='center', fontsize=8.0, fontstyle='italic',
             color=GD, zorder=6)
     ax.annotate('THIS FRAMEWORK',
