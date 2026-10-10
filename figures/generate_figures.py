@@ -8,7 +8,7 @@ This script renders the manuscript's figures into the repository's own
 ``figures/`` directory. Two kinds of figure are produced:
 
   Schematic diagrams (no asserted metric values):
-    fig1-conceptual         - 3-pillar conceptual framework + TRI-X
+    fig1-conceptual         - 3-pillar conceptual framework
     fig2-archetype-pipeline - archetype-to-scenario instantiation pipeline
     fig3-pipeline           - 6-stage evaluation pipeline
     fig6-v3-lifecycle       - V3 lifecycle positioning diagram
@@ -85,7 +85,30 @@ apply_pub_style()
 mpl.rcParams.update({
     'axes.unicode_minus': True,
     'xtick.direction': 'out', 'ytick.direction': 'out',
+    # Print-size typography: figures are drawn at the exact elsarticle
+    # preprint text width (FULL_W) and included at \linewidth, so the sizes
+    # below are the sizes on the printed page (8 pt labels, 7 pt ticks/legend).
+    'font.serif': ['Times New Roman', 'STIXGeneral', 'DejaVu Serif'],
+    'font.size': 8, 'axes.labelsize': 8, 'axes.titlesize': 8,
+    'xtick.labelsize': 7, 'ytick.labelsize': 7, 'legend.fontsize': 7,
+    'axes.linewidth': 0.6, 'lines.linewidth': 1.2,
+    'xtick.major.width': 0.6, 'ytick.major.width': 0.6,
+    'xtick.major.size': 2.5, 'ytick.major.size': 2.5,
+    'pdf.fonttype': 42, 'ps.fonttype': 42,
+    # keep the figure at its declared size (no tight-bbox shrink/grow)
+    'savefig.bbox': 'standard', 'savefig.pad_inches': 0.0,
+    'figure.constrained_layout.h_pad': 0.02, 'figure.constrained_layout.w_pad': 0.02,
 })
+
+# elsarticle [preprint,12pt]: \the\textwidth = 390 pt (measured).
+FULL_W = 390 / 72.27   # 5.40 in
+
+LBL = dict(fontsize=8, fontweight='bold', va='bottom', ha='left')
+
+
+def _panel(ax, letter):
+    """Bold panel label '(a)' placed above the top-left corner of the axes."""
+    ax.text(-0.02, 1.02, f'({letter})', transform=ax.transAxes, **LBL)
 
 # Okabe-Ito aliases for the data-figure series (color-blind safe, palette order)
 P_BLUE   = PALETTE[0]   # overall / low
@@ -102,7 +125,9 @@ P_AMBER  = PALETTE[4]
 def _save(fig, name):
     """Save vector PDF + 300-dpi PNG (canonical) into the repo figures/ dir
     via the shared pubviz.save_fig helper (tight bbox, white bg, 300 dpi)."""
-    save_fig(fig, name, out_dir=OUTDIR)
+    for ext in ('pdf', 'png'):
+        fig.savefig(os.path.join(OUTDIR, f'{name}.{ext}'), facecolor='white')
+    print(f'saved: {name}.pdf / .png')
 
 
 def _shadow_box(ax, cx, cy, w, h, offset=(0.04, -0.04),
@@ -186,9 +211,9 @@ def _add_grid(ax, axis='y', alpha=0.25):
 # FIG 1 - Conceptual framework  (schematic; no metric values)
 # ============================================================================
 def make_fig1():
-    fig, ax = plt.subplots(figsize=(DOUBLE_COL, 3.6))
+    fig, ax = plt.subplots(figsize=(FULL_W, 2.55))
     ax.set_xlim(0, 10)
-    ax.set_ylim(0, 5.0)
+    ax.set_ylim(0.9, 4.5)
     ax.axis('off')
     fig.patch.set_facecolor(WH)
 
@@ -200,13 +225,13 @@ def make_fig1():
 
     pillars = [
         (1.75, 3.42,
-         ['Structured Clinical Reasoning', '(TiTrATE methodology)'],
+         ['Structured Input Reasoning', '(archetypes · perturbations)'],
          BL, BD),
         (1.75, 2.47,
-         ['Urgency Stratification', '(triage tiers: L / M / H)'],
+         ['Risk-oriented Stratification', '(risk tiers: L / M / H)'],
          GL, GD),
         (1.75, 1.52,
-         ['Explainability-aware Design', '(XAI as audit artefact)'],
+         ['Explanation-aware Design', '(XAI as audit artefact)'],
          AL, AM),
     ]
     for cx, cy, lines, fc, ec in pillars:
@@ -231,16 +256,12 @@ def make_fig1():
            col=BD, lw=2.8, ms=18)
 
     _box(ax, 5.85, 2.47, 2.76, 1.90,
-         ['TRI-X', 'Decision-Governance', 'Programme'],
-         fc=BD, ec=BD, tc=WH, fs=11.0, bold_first=True,
+         ['Uncertainty-aware Policy', 'uncertainty as control signal',
+          'escalation · abstention', 'certified risk bound'],
+         fc=BD, ec=BD, tc=WH, fs=8.0, bold_first=True,
          shadow=True, lw=1.5)
 
-    ax.text(5.85, 1.78,
-            'Uncertainty as Control Signal (escalation · abstention)',
-            ha='center', va='center', fontsize=8.0, color='#C0D8F0',
-            style='italic', zorder=5)
-
-    ax.text(5.85, 4.35, 'Governance Paradigm',
+    ax.text(5.85, 4.35, 'Governance Layer',
             ha='center', va='center', fontsize=8.0,
             color=BD, style='italic', fontweight='bold')
 
@@ -250,8 +271,8 @@ def make_fig1():
            col=GD, lw=2.8, ms=18)
 
     _box(ax, 8.85, 2.47, 2.18, 1.90,
-         ['Simulation-based', 'Safety Evaluation', '(Beyond Accuracy)'],
-         fc=GD, ec=GD, tc=WH, fs=9.2, bold_first=True,
+         ['Simulation-based', 'Safety Evaluation', '5-metric suite', 'verdict + artefacts'],
+         fc=GD, ec=GD, tc=WH, fs=8.0, bold_first=True,
          shadow=True, lw=1.5)
 
     ax.text(8.85, 4.35, 'Framework Output',
@@ -266,12 +287,12 @@ def make_fig1():
 
 
 # ============================================================================
-# FIG 2 - Evaluation pipeline (schematic; no metric values)
+# FIG 3 - Evaluation pipeline (schematic; no metric values)
 # ============================================================================
-def make_fig2():
-    fig, ax = plt.subplots(figsize=(DOUBLE_COL, 2.6))
+def make_fig3():
+    fig, ax = plt.subplots(figsize=(FULL_W, 1.55))
     ax.set_xlim(0, 10.0)
-    ax.set_ylim(0, 3.2)
+    ax.set_ylim(1.1, 2.98)
     ax.axis('off')
     fig.patch.set_facecolor(WH)
 
@@ -284,16 +305,16 @@ def make_fig2():
 
     stages = [
         (x0 + 0 * step,
-         ['Clinical', 'Archetypes', '+ Risk Tiers', '(L / M / H)'],
+         ['Scenario', 'Archetypes', '+ Risk Tiers', '(L / M / H)'],
          BL, BD, GRD),
 
         (x0 + 1 * step,
-         ['Scenario', 'Instantiation', '(mask · noise ·',
-          'conflict · degrade)'],
+         ['Scenario', 'Instantiation', 'mask · noise ·',
+          'conflict · degrade'],
          AL, AM, GRD),
 
         (x0 + 2 * step,
-         ['System', 'Under Test', '(CDSS)'],
+         ['System', 'Under Test', '(classifier)'],
          '#EEF2F6', GRM, GRD),
 
         (x0 + 3 * step,
@@ -333,7 +354,7 @@ def make_fig2():
         (x0 + 5 * step,  'Verdict',      GD),
     ]
     for xc, label, col in phase_labels:
-        ax.text(xc, 2.94, label, ha='center', fontsize=8.0,
+        ax.text(xc, 2.80, label, ha='center', fontsize=8.0,
                 color=col, style='italic', fontweight='bold')
 
     _save(fig, 'fig3-pipeline')
@@ -341,12 +362,12 @@ def make_fig2():
 
 
 # ============================================================================
-# FIG 3 - Archetype-to-scenario pipeline (schematic; no metric values)
+# FIG 2 - Archetype-to-scenario pipeline (schematic; no metric values)
 # ============================================================================
-def make_fig3():
-    fig, ax = plt.subplots(figsize=(DOUBLE_COL, 2.4))
-    ax.set_xlim(0, 8.8)
-    ax.set_ylim(0, 2.7)
+def make_fig2():
+    fig, ax = plt.subplots(figsize=(FULL_W, 1.45))
+    ax.set_xlim(-0.06, 7.86)
+    ax.set_ylim(0.75, 2.42)
     ax.axis('off')
     fig.patch.set_facecolor(WH)
 
@@ -359,7 +380,7 @@ def make_fig3():
 
     stages = [
         (x0 + 0 * step,
-         ['Clinical Archetype',
+         ['Scenario Archetype',
           r'(abstract + tier',
           r'$r \in \{L,\,M,\,H\}$)'],
          BL, BD, GRD),
@@ -399,7 +420,7 @@ def make_fig3():
 
     last_cx    = x0 + 3 * step
     right_edge = last_cx + bw / 2
-    assert right_edge < 8.8, f"Right edge {right_edge:.2f} exceeds xlim!"
+    assert right_edge < 7.86, f"Right edge {right_edge:.2f} exceeds xlim!"
 
     _save(fig, 'fig2-archetype-pipeline')
     plt.close(fig)
@@ -443,70 +464,33 @@ def make_fig4(res):
     ci_pct = int(round(band['ci_level'] * 100))
     n_boot = band['n_bootstrap']
 
-    op_cov = res['conformal']['empirical_coverage']
-    op_risk = float(np.interp(op_cov, cov_O, risk_O))
-
-    # selective vs overall FNR operating points (clarify the abstention trade)
-    fnr_pts = res['coverage_risk']['fnr']['points']
-
     ymax = max(0.30, float(np.nanmax(risk_H)) * 1.15, float(np.nanmax(b_hi[bm])) * 1.10)
 
-    fig, ax = plt.subplots(figsize=(ONEHALF_COL, 3.8))
+    fig, ax = plt.subplots(figsize=(FULL_W, 2.35))
     fig.patch.set_facecolor(WH)
     _add_grid(ax, axis='both', alpha=0.18)
 
     # 95% bootstrap CI band around the overall curve
     ax.fill_between(b_cov[bm], b_lo[bm], b_hi[bm], color=P_BLUE, alpha=0.15,
-                    zorder=1, label=f'Overall {ci_pct}% CI ({n_boot} boot.)')
+                    lw=0, zorder=1, label=f'Overall, {ci_pct}% bootstrap CI')
 
-    # Per-tier empirical curves (color-blind-safe palette + distinct dashes)
-    ax.plot(cov_L, risk_L, color=P_GREEN, lw=1.4, ls='--', alpha=0.90, zorder=3,
-            label=f'Low urgency  (AURC = {aurc_L:.3f})')
-    ax.plot(cov_M, risk_M, color=P_ORANGE, lw=1.4, ls='-.', alpha=0.90, zorder=3,
-            label=f'Medium urgency  (AURC = {aurc_M:.3f})')
-    ax.plot(cov_H, risk_H, color=P_PINK, lw=1.4, ls=(0, (1, 1.5)), alpha=0.90,
-            zorder=3, label=f'High urgency  (AURC = {aurc_H:.3f})')
-    ax.plot(cov_O, risk_O, color=P_BLUE, lw=2.4, zorder=4,
-            label=f'Overall  (AURC = {aurc_O:.3f})')
+    # Per-tier empirical curves (Okabe-Ito + distinct dashes for greyscale)
+    ax.plot(cov_L, risk_L, color=P_GREEN, lw=1.1, ls='--', zorder=3,
+            label=f'Low (AURC = {aurc_L:.3f})')
+    ax.plot(cov_M, risk_M, color=P_ORANGE, lw=1.1, ls='-.', zorder=3,
+            label=f'Medium (AURC = {aurc_M:.3f})')
+    ax.plot(cov_H, risk_H, color=P_PINK, lw=1.1, ls=(0, (1, 1.2)),
+            zorder=3, label=f'High (AURC = {aurc_H:.3f})')
+    ax.plot(cov_O, risk_O, color=P_BLUE, lw=1.7, zorder=4,
+            label=f'Overall (AURC = {aurc_O:.3f})')
 
-    # operating marker at the empirical conformal coverage
-    ax.axvline(op_cov, color=GRD, lw=0.9, ls=':', zorder=6)
-    ax.scatter([op_cov], [op_risk], color=P_BLUE, s=50, zorder=8,
-               clip_on=False, edgecolors=WH, linewidths=0.8)
-    ax.annotate(
-        f'conformal\ncov. = {op_cov:.3f}',
-        xy=(op_cov, op_risk),
-        xytext=(op_cov - 0.30, min(op_risk + 0.10, ymax * 0.85)),
-        fontsize=8.0, color=GRD,
-        arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85),
-        zorder=9
-    )
+    ax.set_xlabel('Coverage $c$ (fraction of scenarios retained)')
+    ax.set_ylabel(r'Selective risk $R(c)$ (error rate)')
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, ymax)
 
-    # Selective vs overall FNR callout (real, from results) -- clarifies that
-    # the curve's "risk" is computed over RETAINED cases, while abstaining
-    # positives shifts overall FNR. Pick the ~0.5-coverage operating point.
-    p = min(fnr_pts, key=lambda d: abs(d['coverage'] - 0.5))
-    ax.text(0.97, 0.04,
-            f'At coverage {p["coverage"]:.2f}:  '
-            f'selective FNR = {p["selective_fnr"]:.2f},  '
-            f'overall FNR = {p["overall_fnr"]:.2f}',
-            transform=ax.transAxes, ha='right', va='bottom',
-            fontsize=8.0, color=GRD, style='italic')
-
-    ax.set_xlabel('Coverage (fraction retained)', fontsize=10.0, labelpad=5)
-    ax.set_ylabel(r'Selective risk among retained  $R(c)$',
-                  fontsize=10.0, labelpad=5)
-    ax.set_xlim(0.0, 1.02)
-    ax.set_ylim(-0.01, ymax)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(labelsize=8.5)
-
-    leg = ax.legend(loc='upper left', fontsize=8.0,
-                    framealpha=0.95, edgecolor=GRL,
-                    borderpad=0.65, labelspacing=0.40,
-                    handlelength=2.2)
-    leg.get_frame().set_linewidth(0.5)
+    ax.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), frameon=False,
+              labelspacing=0.5, handlelength=2.4, borderaxespad=0.0)
 
     _save(fig, 'fig4_coverage_risk')
     plt.close(fig)
@@ -519,9 +503,9 @@ def make_fig4(res):
 #          harm_by_tier_framework / harm_by_tier_baseline. Overall reduction is
 #          reduction_fraction. (Note: harm uses the repo tier weights 1/3/10,
 #          so the High tier dominates the scale.)
-# Panel B: explanation stability eta_xai (single computed value) plus the per-
-#          tier calibration error (ECE) the governance gate flags. No fabricated
-#          per-outcome-class breakdown is invented.
+# Panel B: per-tier expected calibration error ECE(r). results/ hold only a
+#          cohort-level eta_xai (no per-tier XAI stability), so it is not
+#          plotted; no per-tier XAI values are invented.
 # ============================================================================
 def make_fig5(res):
     harm = res['harm']
@@ -537,9 +521,11 @@ def make_fig5(res):
     bl_ci = harm.get('harm_by_tier_baseline_ci', {})
 
     def _err(vals, ci):
-        lo = [max(0.0, v - ci[k]['lower']) for v, k in zip(vals, keys)] if ci else None
-        hi = [max(0.0, ci[k]['upper'] - v) for v, k in zip(vals, keys)] if ci else None
-        return np.array([lo, hi]) if ci else None
+        if not ci:
+            return None
+        lo = [max(0.0, v - ci[k]['lower']) for v, k in zip(vals, keys)]
+        hi = [max(0.0, ci[k]['upper'] - v) for v, k in zip(vals, keys)]
+        return np.array([lo, hi])
 
     fw_err = _err(fw_harm, fw_ci)
     bl_err = _err(bl_harm, bl_ci)
@@ -547,99 +533,73 @@ def make_fig5(res):
     fw_overall = harm['harm_weighted_loss_framework']
     bl_overall = harm['harm_weighted_loss_baseline']
 
-    eta_xai = res['explanation_stability']['eta_xai_spearman']
     ece_tier = res['calibration']['ece_by_tier']
-    ece_vals = [ece_tier['Low'], ece_tier['Medium'], ece_tier['High']]
+    ece_vals = [ece_tier[t] for t in tiers]
 
-    # constrained_layout (global) handles spacing; avoid manual GridSpec margins
     fig, (ax_a, ax_b) = plt.subplots(
-        1, 2, figsize=(DOUBLE_COL, 3.6),
-        gridspec_kw=dict(width_ratios=[1.0, 0.82]))
+        1, 2, figsize=(FULL_W, 2.35),
+        gridspec_kw=dict(width_ratios=[1.25, 1.0]))
     fig.patch.set_facecolor(WH)
-
     for ax in (ax_a, ax_b):
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(labelsize=8.5)
         _add_grid(ax, axis='y', alpha=0.20)
 
-    # -- PANEL A: tier-stratified harm loss --
-    x     = np.arange(len(tiers))
+    # -- PANEL A: tier-stratified harm loss (95% bootstrap CI whiskers) --
+    x = np.arange(len(tiers))
     width = 0.36
-
-    ebar = dict(ecolor=GRD, elinewidth=0.9, capsize=2.5, capthick=0.9)
-    ax_a.bar(x - width / 2, bl_harm, width,
-             color=GRL, edgecolor=GRM, linewidth=0.8,
-             hatch='///', label='Accuracy-only baseline', zorder=2,
-             yerr=bl_err, error_kw=ebar)
-    ax_a.bar(x + width / 2, fw_harm, width,
-             color=P_BLUE, edgecolor=P_BLUE, linewidth=0.8,
-             label='Framework-guided', zorder=2,
+    ebar = dict(ecolor=GRD, elinewidth=0.7, capsize=2.0, capthick=0.7)
+    ax_a.bar(x - width / 2, bl_harm, width, color=WH, edgecolor=GRM,
+             linewidth=0.7, hatch='////', label='Accuracy-only baseline',
+             zorder=2, yerr=bl_err, error_kw=ebar)
+    ax_a.bar(x + width / 2, fw_harm, width, color=P_BLUE, edgecolor=P_BLUE,
+             linewidth=0.7, label=r'Framework-guided ($\tau = 0.70$)', zorder=2,
              yerr=fw_err, error_kw=ebar)
 
-    _hi_top = max([(v + (e if e else 0)) for v, e in
-                   zip(bl_harm, (bl_err[1] if bl_err is not None else [0]*3))])
-    ymax = _hi_top * 1.20
+    top = max(v + e for v, e in zip(bl_harm, bl_err[1])) if bl_err is not None \
+        else max(bl_harm)
+    ymax = top * 1.12
     for i, (b, f) in enumerate(zip(bl_harm, fw_harm)):
-        if b > 0:
-            pct = 100 * (b - f) / b
-            ax_a.text(x[i] + width / 2, f + ymax * 0.02,
-                      f'-{pct:.0f}%',
-                      ha='center', va='bottom', fontsize=8.0,
-                      color=GD, fontweight='bold')
-
-    ax_a.text(0.97, 0.97,
-              f'Overall harm-weighted loss\n'
-              f'{bl_overall:.3f} -> {fw_overall:.3f}  (-{reduction_pct:.1f}%)',
-              transform=ax_a.transAxes, ha='right', va='top',
-              fontsize=8.0, color=GRD, style='italic', linespacing=1.30)
+        if b <= 0:
+            continue
+        pct = 100 * (b - f) / b
+        if abs(pct) < 0.5:          # no change -> no label
+            continue
+        y_lab = f + (fw_err[1][i] if fw_err is not None else 0) + ymax * 0.015
+        ax_a.text(x[i] + width / 2, y_lab, f'$-${pct:.0f}%', ha='center',
+                  va='bottom', fontsize=7, color=GRD)
 
     ax_a.set_xticks(x)
-    ax_a.set_xticklabels(tiers, fontsize=9.0)
-    ax_a.set_xlabel('Urgency Tier', fontsize=10.0, labelpad=4)
-    ax_a.set_ylabel(r'Harm-weighted Loss $\mathcal{L}_\mathrm{harm}$',
-                    fontsize=10.0, labelpad=4)
+    ax_a.set_xticklabels(tiers)
+    ax_a.set_xlabel('Risk tier')
+    ax_a.set_ylabel(r'Harm-weighted loss $\mathcal{L}_\mathrm{harm}$')
     ax_a.set_ylim(0, ymax)
-    ax_a.set_xlim(-0.55, 2.85)
-    leg_a = ax_a.legend(loc='upper left', fontsize=8.0,
-                        framealpha=0.95, edgecolor=GRL, borderpad=0.5)
-    leg_a.get_frame().set_linewidth(0.5)
-    ax_a.text(-0.08, 1.03, '(a)', transform=ax_a.transAxes,
-              fontsize=11, fontweight='bold', va='bottom', ha='left')
+    ax_a.set_xlim(-0.6, 2.6)
+    ax_a.legend(loc='upper left', frameon=False, borderaxespad=0.2,
+                handlelength=1.6, labelspacing=0.35)
+    ax_a.text(0.02, 0.70,
+              'Overall $\mathcal{L}_\mathrm{harm}$: '
+              f'{bl_overall:.3f} $\\rightarrow$ {fw_overall:.3f}\n'
+              f'($-${reduction_pct:.1f}%)',
+              transform=ax_a.transAxes, ha='left', va='top', fontsize=7,
+              color=GRD, linespacing=1.3)
+    _panel(ax_a, 'a')
 
-    # -- PANEL B: per-tier calibration error + overall eta_xai --
-    # palette + hatches so tiers stay distinct in greyscale (FIGURE_STYLE r.5)
-    bar_col   = [P_BLUE, P_ORANGE, P_PINK]
-    bar_hatch = ['\\\\', '...', '///']
-
-    x2 = np.arange(len(tiers))
-    bars = ax_b.bar(x2, ece_vals, 0.54,
-                    color=bar_col, edgecolor=[c for c in bar_col],
-                    linewidth=0.8, alpha=0.82, zorder=2)
+    # -- PANEL B: per-tier expected calibration error --
+    bar_col = [P_BLUE, P_ORANGE, P_PINK]
+    bar_hatch = ['', '....', '////']
+    bars = ax_b.bar(x, ece_vals, 0.55, color=bar_col, edgecolor=GRD,
+                    linewidth=0.6, zorder=2)
     for bar, hatch in zip(bars, bar_hatch):
         bar.set_hatch(hatch)
-
-    for xi, v in zip(x2, ece_vals):
-        ax_b.text(xi, v + max(ece_vals) * 0.03, f'{v:.3f}',
-                  ha='center', va='bottom', fontsize=8.0, color=GRD,
-                  fontweight='bold')
-
-    ax_b.axhline(eta_xai, color=P_GREEN, lw=1.0, ls='--', alpha=0.85, zorder=1,
-                 label=fr'$\eta_\mathrm{{xai}}$ = {eta_xai:.3f} (overall)')
-
-    ax_b.set_xticks(x2)
-    ax_b.set_xticklabels(tiers, fontsize=9.0)
-    ax_b.set_xlabel('Urgency Tier', fontsize=10.0, labelpad=4)
-    ax_b.set_ylabel(r'Calibration Error  ECE$(r)$',
-                    fontsize=10.0, labelpad=4)
-    ax_b.set_ylim(0, max(max(ece_vals), eta_xai) * 1.12)
-    ax_b.set_xlim(-0.60, 2.60)
-
-    leg_b = ax_b.legend(loc='upper left', fontsize=8.0,
-                        framealpha=0.95, edgecolor=GRL, borderpad=0.5)
-    leg_b.get_frame().set_linewidth(0.5)
-    ax_b.text(-0.08, 1.03, '(b)', transform=ax_b.transAxes,
-              fontsize=11, fontweight='bold', va='bottom', ha='left')
+    for xi, v in zip(x, ece_vals):
+        ax_b.text(xi, v + max(ece_vals) * 0.02, f'{v:.3f}', ha='center',
+                  va='bottom', fontsize=7, color=GRD)
+    ax_b.set_xticks(x)
+    ax_b.set_xticklabels(tiers)
+    ax_b.set_xlabel('Risk tier')
+    ax_b.set_ylabel(r'Expected calibration error ECE$_{(r)}$')
+    ax_b.set_ylim(0, max(ece_vals) * 1.18)
+    ax_b.set_xlim(-0.6, 2.6)
+    _panel(ax_b, 'b')
 
     _save(fig, 'fig5_harm_xai')
     plt.close(fig)
@@ -650,11 +610,9 @@ def make_fig5(res):
 # ============================================================================
 def make_fig6():
     print('[Fig 6] V3 Lifecycle Positioning ...')
-    W = DOUBLE_COL
-    H = W * 0.50
-    fig, ax = plt.subplots(figsize=(W, H))
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    fig, ax = plt.subplots(figsize=(FULL_W, 2.45))
+    ax.set_xlim(-0.065, 0.875)
+    ax.set_ylim(0.03, 0.97)
     ax.axis('off')
 
     cy = 0.46
@@ -667,7 +625,7 @@ def make_fig6():
 
     for label, cx, _, bw, bh_, fc, ec in stages:
         x0, y0 = cx - bw/2, cy - bh_/2
-        _shadow_box(ax, cx, cy, bw, bh_)
+        pass  # no drop shadow (flat print style)
         box = FancyBboxPatch(
             (x0, y0), bw, bh_,
             boxstyle='round,pad=0.015',
@@ -676,7 +634,7 @@ def make_fig6():
         )
         ax.add_patch(box)
         ax.text(cx, cy + 0.04, label, ha='center', va='center',
-                fontsize=9.5, fontweight='bold', color=ec, zorder=4)
+                fontsize=8, fontweight='bold', color=ec, zorder=4)
 
     arr_kw = dict(arrowstyle='->', lw=2.0, color=GRD, mutation_scale=14)
     ax.annotate('', xy=(0.40 - 0.26/2 - 0.02, cy),
@@ -706,7 +664,7 @@ def make_fig6():
         xy=(0.40, cy + bh/2 + 0.01),
         xytext=(0.40, 0.86),
         ha='center', va='center',
-        fontsize=8.5, fontweight='bold', color=GD,
+        fontsize=8, fontweight='bold', color=GD,
         arrowprops=dict(arrowstyle='->', color=GD, lw=1.8),
         zorder=6
     )
@@ -744,10 +702,6 @@ def make_fig6():
                                 linestyle='dashed'),
                 zorder=5)
 
-    ax.text(0.50, 0.01,
-            'V3 Digital Biomarker Development Lifecycle (Goldsack et al. 2020)',
-            ha='center', va='bottom', fontsize=8.0, color=GRM,
-            fontstyle='italic', zorder=6)
 
     _save(fig, 'fig6-v3-lifecycle')
     plt.close(fig)
@@ -956,40 +910,43 @@ def make_fig_dca(res):
     t = np.asarray(dca['thresholds'], float)
     nb_model = np.asarray(dca['net_benefit_model'], float)
     nb_all = np.asarray(dca['net_benefit_treat_all'], float)
+    nb_none = np.asarray(dca['net_benefit_treat_none'], float)
     prev = dca['prevalence']
 
-    fig, ax = plt.subplots(figsize=(ONEHALF_COL, 3.6))
+    fig, ax = plt.subplots(figsize=(FULL_W, 2.35))
     fig.patch.set_facecolor(WH)
     _add_grid(ax, axis='both', alpha=0.18)
 
-    ax.axhline(0.0, color=GRM, lw=1.0, ls='-', alpha=0.7, zorder=2,
-               label='Treat none')
-    ax.plot(t, nb_all, color=P_ORANGE, lw=1.5, ls='--', zorder=3,
+    ax.plot(t, nb_none, color=GRM, lw=1.0, ls=':', zorder=2,
+            label='Treat none')
+    ax.plot(t, nb_all, color=P_ORANGE, lw=1.2, ls='--', zorder=3,
             label='Treat all')
-    ax.plot(t, nb_model, color=P_BLUE, lw=2.4, zorder=4,
-            label='Framework (model-guided)')
+    ax.plot(t, nb_model, color=P_BLUE, lw=1.7, zorder=4,
+            label='Prototype classifier')
 
-    # mark the framework operating threshold for the high-urgency tier (0.30)
-    op_t = res['meta']['tier_threshold']['high']
-    op_nb = float(np.interp(op_t, t, nb_model))
-    ax.axvline(op_t, color=GRD, lw=0.9, ls=':', zorder=5)
-    ax.scatter([op_t], [op_nb], color=P_BLUE, s=45, zorder=8,
-               edgecolors=WH, linewidths=0.8, clip_on=False)
-    ax.annotate(
-        f'high-urgency\nthreshold = {op_t:.2f}\nNB = {op_nb:.3f}',
-        xy=(op_t, op_nb), xytext=(op_t + 0.07, op_nb - 0.14),
-        fontsize=8.0, color=GRD,
-        arrowprops=dict(arrowstyle='->', color=GRD, lw=0.85), zorder=9)
+    # reference thresholds quoted in the text (values read off the stored curve)
+    for tq in (0.10, 0.30, 0.50):
+        k = int(np.argmin(np.abs(t - tq)))
+        ax.plot([t[k], t[k]], [nb_all[k], nb_model[k]], color=GRD, lw=0.6,
+                zorder=5)
+        ax.scatter([t[k]], [nb_model[k]], s=14, color=P_BLUE, zorder=6,
+                   edgecolors=WH, linewidths=0.5, clip_on=False)
+        ax.scatter([t[k]], [nb_all[k]], s=12, marker='s', color=P_ORANGE,
+                   zorder=6, edgecolors=WH, linewidths=0.5, clip_on=False)
+        ax.annotate(f'{nb_model[k]:.3f}', (t[k], nb_model[k]),
+                    xytext=(0, 4), textcoords='offset points', ha='center',
+                    va='bottom', fontsize=7, color=P_BLUE)
+        ax.annotate(f'{nb_all[k]:.3f}'.replace('-', '−'), (t[k], nb_all[k]),
+                    xytext=(-3, -3), textcoords='offset points', ha='right',
+                    va='top', fontsize=7, color=P_ORANGE)
 
-    ax.set_xlabel('Threshold probability  $p_t$', fontsize=10.0, labelpad=5)
-    ax.set_ylabel('Net benefit', fontsize=10.0, labelpad=5)
-    ax.set_xlim(t.min(), t.max())
-    ax.set_ylim(min(-0.02, float(nb_all.min()) * 1.05),
+    ax.set_xlabel(r'Threshold probability $p_t$')
+    ax.set_ylabel('Net benefit (true positives per case)')
+    ax.set_xlim(0.0, t.max() + 0.02)
+    ax.set_ylim(min(-0.02, float(nb_all.min()) * 1.9),
                 float(max(nb_model.max(), prev)) * 1.12)
-    ax.tick_params(labelsize=8.5)
-    leg = ax.legend(loc='lower left', fontsize=8.0,
-                    framealpha=0.95, edgecolor=GRL, borderpad=0.6)
-    leg.get_frame().set_linewidth(0.5)
+    ax.legend(loc='upper right', frameon=False, borderaxespad=0.2,
+              handlelength=2.4, labelspacing=0.35)
 
     _save(fig, 'fig7_decision_curve')
     plt.close(fig)
@@ -998,54 +955,50 @@ def make_fig_dca(res):
 # ============================================================================
 # FIG 8 - Reliability diagram  (data: results/eval_results.json)
 #
-# Predicted probability vs observed frequency by bin, with the computed ECE
-# annotated. Bins and ECE are produced by run_all.py from the repo's own
-# reliability_curve()/ECE, so the diagram and the reported ECE are consistent.
+# (a) overall reliability with bin-count-scaled markers and the computed ECE;
+# (b) the per-tier reliability curves stored by run_all.py (reliability_by_tier).
 # ============================================================================
 def make_fig_reliability(res):
-    rel = res['calibration']['reliability_overall']
+    cal = res['calibration']
+    rel = cal['reliability_overall']
     conf = np.asarray(rel['bin_confidence'], float)
     acc = np.asarray(rel['bin_accuracy'], float)
     cnt = np.asarray(rel['bin_count'], float)
     ece = rel['ece']
 
-    fig, ax = plt.subplots(figsize=(SINGLE_COL * 1.45, 3.6))
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(FULL_W, 2.75))
     fig.patch.set_facecolor(WH)
-    _add_grid(ax, axis='both', alpha=0.18)
+    for ax in (ax_a, ax_b):
+        _add_grid(ax, axis='both', alpha=0.18)
+        ax.plot([0, 1], [0, 1], color=GRM, lw=0.8, ls='--', zorder=2,
+                label='Perfect calibration' if ax is ax_a else None)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlabel('Mean predicted probability')
+        ax.set_ylabel('Observed event frequency')
 
-    # perfect-calibration diagonal
-    ax.plot([0, 1], [0, 1], color=GRM, lw=1.0, ls='--', zorder=2,
-            label='Perfect calibration')
-
-    # gap bars (predicted - observed) as light shading under the curve markers
     for c, a in zip(conf, acc):
-        ax.plot([c, c], [c, a], color=RD, lw=1.0, alpha=0.45, zorder=3)
-
-    # marker size scaled by bin count (more mass = larger), real counts
+        ax_a.plot([c, c], [c, a], color=P_ORANGE, lw=0.8, zorder=3)
     smax = cnt.max() if cnt.size else 1.0
-    sizes = 30 + 120 * (cnt / smax)
-    ax.plot(conf, acc, color=P_BLUE, lw=1.8, zorder=4,
-            label='Observed (per bin)')
-    ax.scatter(conf, acc, s=sizes, color=P_BLUE, edgecolors=WH,
-               linewidths=0.8, zorder=5)
+    ax_a.plot(conf, acc, color=P_BLUE, lw=1.2, zorder=4, label='Observed (per bin)')
+    ax_a.scatter(conf, acc, s=8 + 40 * (cnt / smax), color=P_BLUE,
+                 edgecolors=WH, linewidths=0.5, zorder=5)
+    ax_a.text(0.03, 0.97, f'ECE = {ece:.3f}\nmarker area $\\propto$ bin count',
+              transform=ax_a.transAxes, ha='left', va='top', fontsize=7,
+              color=GRD, linespacing=1.3)
+    ax_a.legend(loc='lower right', frameon=False, borderaxespad=0.2)
+    _panel(ax_a, 'a')
 
-    ax.text(0.04, 0.96, f'ECE = {ece:.3f}',
-            transform=ax.transAxes, ha='left', va='top',
-            fontsize=9.0, color=GRD, fontweight='bold')
-    ax.text(0.04, 0.88, 'marker area $\\propto$ bin count;\n'
-            'red stems = calibration gap',
-            transform=ax.transAxes, ha='left', va='top',
-            fontsize=8.0, color=GRM, style='italic')
-
-    ax.set_xlabel('Mean predicted probability', fontsize=10.0, labelpad=5)
-    ax.set_ylabel('Observed frequency', fontsize=10.0, labelpad=5)
-    ax.set_xlim(-0.02, 1.02)
-    ax.set_ylim(-0.02, 1.02)
-    ax.set_aspect('equal', adjustable='box')
-    ax.tick_params(labelsize=8.5)
-    leg = ax.legend(loc='lower right', fontsize=8.0,
-                    framealpha=0.95, edgecolor=GRL, borderpad=0.6)
-    leg.get_frame().set_linewidth(0.5)
+    styles = {'Low': (P_GREEN, '--', 'o'), 'Medium': (P_ORANGE, '-.', 's'),
+              'High': (P_PINK, '-', '^')}
+    for tier, (col, ls, mk) in styles.items():
+        r = cal['reliability_by_tier'][tier]
+        ax_b.plot(r['bin_confidence'], r['bin_accuracy'], color=col, ls=ls,
+                  marker=mk, ms=3, lw=1.1, zorder=4,
+                  label=f'{tier} (ECE = {r["ece"]:.3f})')
+    ax_b.legend(loc='lower right', frameon=False, borderaxespad=0.2)
+    _panel(ax_b, 'b')
 
     _save(fig, 'fig8_reliability')
     plt.close(fig)

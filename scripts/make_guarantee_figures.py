@@ -23,11 +23,20 @@ RES = REPO / "results"
 OUT = REPO / "figures"
 OUT.mkdir(exist_ok=True)
 
+# elsarticle [preprint,12pt]: 	he	extwidth = 390 pt (measured); figures are
+# drawn at this width so the type prints at its nominal size.
+FULL_W = 390 / 72.27
+
 plt.rcParams.update({
     "font.family": "serif", "font.serif": ["Times New Roman", "STIXGeneral", "DejaVu Serif"],
-    "mathtext.fontset": "stix", "font.size": 9, "axes.labelsize": 9,
-    "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 7.5,
-    "axes.linewidth": 0.6, "pdf.fonttype": 42,
+    "mathtext.fontset": "stix", "font.size": 8, "axes.labelsize": 8,
+    "xtick.labelsize": 7, "ytick.labelsize": 7, "legend.fontsize": 7,
+    "axes.linewidth": 0.6, "pdf.fonttype": 42, "ps.fonttype": 42,
+    "xtick.major.width": 0.6, "ytick.major.width": 0.6,
+    "xtick.major.size": 2.5, "ytick.major.size": 2.5,
+    "axes.grid": True, "grid.alpha": 0.25, "grid.linewidth": 0.4, "axes.axisbelow": True,
+    "figure.constrained_layout.use": True,
+    "figure.constrained_layout.h_pad": 0.02, "figure.constrained_layout.w_pad": 0.02,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -44,7 +53,7 @@ LABEL = {"unweighted": "Unweighted split conformal",
 def fig_coverage() -> None:
     d = pd.read_csv(RES / "shift_coverage.csv")
     target = 1 - float(d["alpha"].iloc[0])
-    fig, (a, b) = plt.subplots(1, 2, figsize=(5.8, 2.6))
+    fig, (a, b) = plt.subplots(1, 2, figsize=(FULL_W, 2.45))
     for arm, g in d.groupby("weighting"):
         g = g.sort_values("tilt")
         col, dash, mk = STYLE[arm]
@@ -61,23 +70,21 @@ def fig_coverage() -> None:
     b.set_xlabel(r"Shift strength $\lambda_{\mathrm{tilt}}$")
     b.set_ylabel(r"Mean prediction-set size $|C(x)|$")
     b.axhline(1.0, color="#999999", linewidth=0.6)
-    a.text(0.0, 1.04, "(a)", transform=a.transAxes, fontweight="bold")
-    b.text(0.0, 1.04, "(b)", transform=b.transAxes, fontweight="bold")
-    fig.legend(*a.get_legend_handles_labels(), loc="lower center", ncol=3, frameon=False,
-               bbox_to_anchor=(0.5, -0.07))
-    fig.tight_layout()
-    fig.savefig(OUT / "fig_shift_coverage.pdf", bbox_inches="tight")
-    fig.savefig(OUT / "fig_shift_coverage.png", dpi=300, bbox_inches="tight")
+    a.text(-0.02, 1.02, "(a)", transform=a.transAxes, fontweight="bold", va="bottom")
+    b.text(-0.02, 1.02, "(b)", transform=b.transAxes, fontweight="bold", va="bottom")
+    fig.legend(*a.get_legend_handles_labels(), loc="outside lower center", ncol=3,
+               frameon=False)
+    fig.savefig(OUT / "fig_shift_coverage.pdf")
+    fig.savefig(OUT / "fig_shift_coverage.png", dpi=300)
     plt.close(fig)
     print("wrote figures/fig_shift_coverage.pdf")
 
 
 def fig_risk() -> None:
     d = pd.read_csv(RES / "risk_control.csv").sort_values("lambda")
-    v = pd.read_csv(RES / "risk_control_validation.csv").iloc[0]
-    alpha_risk, delta = float(d.alpha_risk.iloc[0]), float(d.delta.iloc[0])
+    alpha_risk = float(d.alpha_risk.iloc[0])
 
-    fig, (a, b) = plt.subplots(1, 2, figsize=(5.8, 2.6))
+    fig, (a, b) = plt.subplots(1, 2, figsize=(FULL_W, 2.45))
     a.plot(d["lambda"], d.empirical_fnr_cal, color="#0072B2", marker="o", markersize=3.2,
            linewidth=1.3, markerfacecolor="white", label="FNR (calibration)")
     a.plot(d["lambda"], d.fnr_test_at_lambda, color="#D55E00", linestyle=(0, (6, 2)),
@@ -100,23 +107,20 @@ def fig_risk() -> None:
     if len(cert):
         b.axvline(float(cert["lambda"].max()), color="#009E73", linestyle=(0, (4, 2)),
                   linewidth=1.0)
-        b.annotate("certified
-operating point",
-                   (float(cert["lambda"].max()), 0.18), xytext=(10, 0),
-                   textcoords="offset points", fontsize=7, color="#009E73",
-                   linespacing=1.2)
+        lam_c = float(cert["lambda"].max())
+        ar_c = float(cert.loc[cert["lambda"] == lam_c, "alert_rate_high_tier"].iloc[0])
+        b.annotate("certified operating point\n" rf"$\lambda={lam_c:g}$, alert rate {ar_c:.3f}",
+                   (lam_c, ar_c), xytext=(22, -4), textcoords="offset points",
+                   fontsize=7, color="#009E73", linespacing=1.2, ha="left", va="top",
+                   arrowprops=dict(arrowstyle="-|>", color="#009E73", lw=0.6,
+                                   mutation_scale=6, shrinkA=1, shrinkB=3))
     b.set_xlabel(r"Alert threshold $\lambda$")
     b.set_ylabel("Alert rate, high-urgency tier")
     b.set_ylim(0, 1.02)
-    a.text(0.0, 1.04, "(a)", transform=a.transAxes, fontweight="bold")
-    b.text(0.0, 1.04, "(b)", transform=b.transAxes, fontweight="bold")
-    fig.suptitle("")
-    fig.text(0.5, -0.06, f"Validation over {int(v.n_deployments)} simulated deployments: "
-                         f"violation rate {v.violation_rate:.3f} "
-                         rf"$\leq\delta={delta:g}$", ha="center", fontsize=7.5)
-    fig.tight_layout()
-    fig.savefig(OUT / "fig_risk_control.pdf", bbox_inches="tight")
-    fig.savefig(OUT / "fig_risk_control.png", dpi=300, bbox_inches="tight")
+    a.text(-0.02, 1.02, "(a)", transform=a.transAxes, fontweight="bold", va="bottom")
+    b.text(-0.02, 1.02, "(b)", transform=b.transAxes, fontweight="bold", va="bottom")
+    fig.savefig(OUT / "fig_risk_control.pdf")
+    fig.savefig(OUT / "fig_risk_control.png", dpi=300)
     plt.close(fig)
     print("wrote figures/fig_risk_control.pdf")
 
