@@ -1,0 +1,18 @@
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+ & & \multicolumn{2}{c}{ECE} & & \multicolumn{3}{c}{Conformal ($\alpha{=}0.10$)} \\
+\cmidrule(lr){3-4}\cmidrule(lr){6-8}
+Family & AUROC & pooled & KTAS 1--2 & FNR$_{1\text{--}2}$ & unweighted ($<$0.90) & est.\ $w$ & $|C|$, est.\ $w$ \\
+\midrule
+\multicolumn{8}{@{}l}{\emph{Develop on site 1, test on site 2 ($n{=}579$)}} \\
+Logistic reg. & 0.688 & 0.296 & 0.486 & 0.621 & 0.751 (20) & 0.999 & 1.99 \\
+RF (isotonic) & 0.694 & 0.280 & 0.453 & 0.550 & 0.759 (20) & 0.999 & 1.99 \\
+Grad. boosting & 0.650 & 0.300 & 0.461 & 0.613 & 0.746 (20) & 0.999 & 1.99 \\
+MLP (Platt) & 0.663 & 0.272 & 0.493 & 0.724 & 0.788 (20) & 0.999 & 1.99 \\
+\multicolumn{8}{@{}l}{\emph{Develop on site 2, test on site 1 ($n{=}688$)}} \\
+Logistic reg. & 0.679 & 0.163 & 0.323 & 0.617 & 0.804 (20) & 0.985 & 1.95 \\
+RF (isotonic) & 0.688 & 0.199 & 0.098 & 0.013 & 0.941 (1) & 0.964 & 1.91 \\
+Grad. boosting & 0.651 & 0.167 & 0.152 & 0.164 & 0.916 (5) & 0.971 & 1.93 \\
+MLP (Platt) & 0.631 & 0.217 & 0.080 & 0.000 & 0.921 (8) & 0.982 & 1.95 \\
+\bottomrule
+\end{tabular}
