@@ -1,0 +1,17 @@
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{Coverage, high tier} & \multicolumn{2}{c}{$|C|$, high tier} & \multicolumn{3}{c}{Tier-wise LTT, high tier} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-8}
+Family & marginal ($<$0.90) & Mondrian ($<$0.90) & marginal & Mondrian & certified & held-out FNR & alert rate \\
+\midrule
+LR & 0.859 (20) & 0.906 (8) & 1.10 & 1.23 & 19/20 & 0.013 & 0.867 \\
+RF-cal & 0.858 (20) & 0.910 (4) & 1.10 & 1.23 & 19/20 & 0.009 & 0.903 \\
+RF-raw & 0.855 (20) & 0.907 (8) & 1.09 & 1.23 & 20/20 & 0.013 & 0.890 \\
+GB & 0.862 (20) & 0.902 (9) & 1.11 & 1.23 & 19/20 & 0.012 & 0.897 \\
+XGBoost & 0.861 (20) & 0.908 (8) & 1.11 & 1.25 & 14/20 & 0.016 & 0.854 \\
+LightGBM & 0.857 (20) & 0.904 (8) & 1.12 & 1.25 & 2/20 & 0.034 & 0.838 \\
+SVM-RBF & 0.852 (20) & 0.906 (8) & 1.08 & 1.23 & 20/20 & 0.003 & 0.981 \\
+MLP & 0.854 (20) & 0.909 (6) & 1.22 & 1.39 & 0/20 & --- & --- \\
+MLP-Platt & 0.858 (20) & 0.903 (9) & 1.18 & 1.32 & 20/20 & 0.000 & 1.000 \\
+\bottomrule
+\end{tabular}
