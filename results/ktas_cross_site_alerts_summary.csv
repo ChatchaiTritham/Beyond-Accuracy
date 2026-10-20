@@ -1,0 +1,13 @@
+direction,model,alert_rate_all,alert_rate_high
+site1->site2,gradient_boosting,0.1503,0.3491
+site1->site2,lightgbm,0.1611,0.2856
+site1->site2,logistic_regression,0.1256,0.3178
+site1->site2,mlp_calibrated,0.0762,0.2484
+site1->site2,random_forest,0.137,0.3969
+site1->site2,xgboost,0.1554,0.3131
+site2->site1,gradient_boosting,0.3116,0.7756
+site2->site1,lightgbm,0.384,0.782
+site2->site1,logistic_regression,0.0495,0.2506
+site2->site1,mlp_calibrated,0.292,1.0
+site2->site1,random_forest,0.3269,0.9535
+site2->site1,xgboost,0.352,0.7907

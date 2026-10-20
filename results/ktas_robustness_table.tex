@@ -1,0 +1,14 @@
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+ & \multicolumn{3}{c}{FNR, KTAS 1--2} & & \multicolumn{2}{c}{Coverage, KTAS 1--2} & \multicolumn{2}{c}{$|C|$, KTAS 1--2} \\
+\cmidrule(lr){2-4}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+Family & $\tau{=}0.5$ & expert tier & nurse tier & Harm, nurse & marginal & Mondrian & marginal & Mondrian \\
+\midrule
+Logistic reg. & 0.340 & 0.124 & 0.143 $\pm$ 0.040 & 0.962 & 0.906 & 0.942 & 1.554 & 1.708 \\
+RF (isotonic) & 0.301 & 0.074 & 0.094 $\pm$ 0.038 & 0.912 & 0.931 & 0.946 & 1.587 & 1.662 \\
+Grad. boosting & 0.311 & 0.123 & 0.137 $\pm$ 0.052 & 0.952 & 0.923 & 0.944 & 1.578 & 1.661 \\
+MLP (Platt) & 0.594 & 0.144 & 0.168 $\pm$ 0.062 & 1.014 & 0.908 & 0.937 & 1.778 & 1.856 \\
+XGBoost & 0.295 & 0.149 & 0.160 $\pm$ 0.051 & 0.983 & 0.921 & 0.936 & 1.601 & 1.680 \\
+LightGBM & 0.307 & 0.179 & 0.183 $\pm$ 0.055 & 1.017 & 0.921 & 0.947 & 1.609 & 1.711 \\
+\bottomrule
+\end{tabular}
