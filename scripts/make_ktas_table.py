@@ -14,7 +14,8 @@ s = pd.read_csv(RES / "ktas_summary.csv").set_index("model")
 ORDER = [("logistic_regression", "Logistic reg."),
          ("random_forest", "RF (isotonic)"),
          ("gradient_boosting", "Grad. boosting"),
-         ("mlp_calibrated", "MLP (Platt)")]
+         ("mlp_calibrated", "MLP (Platt)"),
+         ("deep_ensemble", "Deep ens.")]
 
 
 def ms(row, k, d=3):
@@ -25,22 +26,30 @@ def pct(v):
     return f"{100 * v:.0f}"
 
 
-lines = [r"\begin{tabular}{@{}lcccc@{}}", r"\toprule",
+lines = [r"\begin{tabular}{@{}lccccc@{}}", r"\toprule",
          " & " + " & ".join(n for _, n in ORDER) + r" \\", r"\midrule",
-         r"\multicolumn{5}{@{}l}{\emph{Standard audit}} \\"]
+         r"\multicolumn{6}{@{}l}{\emph{Pooled audit}} \\"]
 rows = [("AUROC", lambda r: ms(r, "auroc")),
         ("Brier score", lambda r: ms(r, "brier")),
         ("ECE, pooled", lambda r: ms(r, "ece_overall")),
         ("Passes audit (\\%)", lambda r: pct(r["standard_audit_pass_rate"])),
-        (None, r"\multicolumn{5}{@{}l}{\emph{Tier-stratified suite}} \\"),
+        (None, r"\multicolumn{6}{@{}l}{\emph{Tier-stratified suite}} \\"),
         ("ECE, KTAS 4--5", lambda r: ms(r, "ece_Low")),
         ("ECE, KTAS 3", lambda r: ms(r, "ece_Medium")),
         ("ECE, KTAS 1--2", lambda r: ms(r, "ece_High")),
+        ("\\quad perfect-calibration floor", lambda r: ms(r, "ece_null_High")),
+        ("\\quad excess over floor", lambda r: ms(r, "ece_excess_High")),
+        ("Calibration slope, KTAS 1--2", lambda r: ms(r, "calib_slope_High", 2)),
         ("AURC, KTAS 1--2", lambda r: ms(r, "aurc_High")),
         ("FNR KTAS 1--2, $\\tau{=}0.5$", lambda r: ms(r, "fnr_high_baseline")),
-        ("FNR KTAS 1--2, tier $\\tau$", lambda r: ms(r, "fnr_high_framework")),
+        ("FNR KTAS 1--2, nurse-tier $\\tau$", lambda r: ms(r, "fnr_high_nurse")),
+        ("FNR KTAS 1--2, expert-tier $\\tau$", lambda r: ms(r, "fnr_high_framework")),
+        ("Alert rate KTAS 1--2, $\\tau{=}0.5$", lambda r: ms(r, "alert_rate_high_baseline")),
+        ("Alert rate KTAS 1--2, nurse-tier $\\tau$", lambda r: ms(r, "alert_rate_high_nurse")),
         ("Harm loss, $\\tau{=}0.5$", lambda r: ms(r, "harm_baseline")),
-        ("Harm loss, tier $\\tau$", lambda r: ms(r, "harm_framework")),
+        ("Harm loss, nurse-tier $\\tau$", lambda r: ms(r, "harm_nurse")),
+        ("Asymmetric harm, $\\tau{=}0.5$", lambda r: ms(r, "harm_asym_baseline")),
+        ("Asymmetric harm, nurse-tier $\\tau$", lambda r: ms(r, "harm_asym_nurse")),
         ("Conformal coverage", lambda r: ms(r, "conformal_coverage")),
         ("Explanation stability", lambda r: ms(r, "eta_occlusion")),
         ("LTT certified (\\%)", lambda r: pct(r["ltt_certified_rate"])),

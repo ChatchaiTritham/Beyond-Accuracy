@@ -67,6 +67,25 @@ TIER_THRESHOLD = {"low": 0.60, "medium": 0.45, "high": 0.30}
 LAMBDAS = np.round(np.arange(0.05, 0.96, 0.05), 2)
 TIERS = ["Low", "Medium", "High"]
 
+class DeepEnsemble:
+    """Uncertainty baseline: five independently initialised MLPs (128-64-32, ReLU, Adam,
+    early stopping) whose predicted probabilities are averaged. Deep ensembles are the
+    standard non-Bayesian uncertainty baseline for tabular networks."""
+
+    def __init__(self, seed, n_members=5):
+        self.members = [make_pipeline(StandardScaler(), MLPClassifier(
+            hidden_layer_sizes=(128, 64, 32), max_iter=1000, early_stopping=True,
+            random_state=seed * 100 + k)) for k in range(n_members)]
+
+    def fit(self, X, y):
+        for m in self.members:
+            m.fit(X, y)
+        return self
+
+    def predict_proba(self, X):
+        return np.mean([m.predict_proba(X) for m in self.members], axis=0)
+
+
 FAMILIES = {
     "logistic_regression": lambda s: make_pipeline(
         StandardScaler(), LogisticRegression(max_iter=2000, random_state=s)),
@@ -78,7 +97,9 @@ FAMILIES = {
         make_pipeline(StandardScaler(), MLPClassifier(hidden_layer_sizes=(64, 32),
                                                       max_iter=800, random_state=s)),
         method="sigmoid", cv=3),
+    "deep_ensemble": lambda s: DeepEnsemble(s),
 }
+OUTCOME = "admission"   # admission | severe | undertriage (set from the command line)
 
 
 def load():
@@ -101,10 +122,22 @@ def load():
         X[f"{c}_missing"] = d[c].isna().astype(int)
         X[c] = d[c]
     X = X.loc[:, X.std() > 0]
-    y = d["Disposition"].isin([2, 3, 5, 6, 7]).astype(int).values
+    if OUTCOME == "admission":        # ward, ICU, transfer, death, operation
+        y = d["Disposition"].isin([2, 3, 5, 6, 7]).astype(int).values
+    elif OUTCOME == "severe":         # ICU, death, operation only (n = 39)
+        y = d["Disposition"].isin([3, 6, 7]).astype(int).values
+    elif OUTCOME == "undertriage":    # nurse level less urgent than expert level (n = 131)
+        y = (d["KTAS_RN"] > d["KTAS_expert"]).astype(int).values
+    else:
+        raise ValueError(OUTCOME)
     tiers = np.where(d["KTAS_expert"] <= 2, "High",
                      np.where(d["KTAS_expert"] == 3, "Medium", "Low"))
-    return X, y, tiers
+    nurse = np.where(d["KTAS_RN"] <= 2, "High",
+                     np.where(d["KTAS_RN"] == 3, "Medium", "Low"))
+    if OUTCOME == "undertriage":
+        # the expert level defines the label, so only the nurse tier may stratify
+        tiers = nurse
+    return X, y, tiers, nurse
 
 
 def impute(X, idx_fit):
@@ -171,7 +204,7 @@ def calib_slope_intercept(y, p):
         return float("nan"), float("nan")
 
 
-def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None):
+def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None, nurse=None):
     idx = np.arange(len(y))
     strat = np.array([f"{t}_{v}" for t, v in zip(tiers, y)])
     tr, tmp = train_test_split(idx, test_size=0.5, random_state=seed, stratify=strat)
@@ -213,6 +246,24 @@ def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None):
     r["spec_high_baseline"] = float((p[neg] < 0.5).mean()) if neg.sum() else np.nan
     r["spec_high_framework"] = float((p[neg] < 0.30).mean()) if neg.sum() else np.nan
     r["harm_increased"] = bool(r["harm_framework"] > r["harm_baseline"])
+    # asymmetric harm: a missed positive costs the tier weight, a false alert costs 1
+    w = np.array([HARM_WEIGHTS[t] for t in tl])
+    def asym(pred):
+        fn = (pred == 0) & (yt == 1)
+        fp = (pred == 1) & (yt == 0)
+        return float((w * fn + 1.0 * fp).mean())
+    r["harm_asym_baseline"] = asym(base)
+    r["harm_asym_framework"] = asym(fw)
+    # deployable policy: thresholds chosen with the NURSE tier, scored on the expert tier
+    if nurse is not None:
+        nl = np.array([t.lower() for t in nurse[te]])
+        fw_n = np.array([int(pi >= TIER_THRESHOLD[t]) for pi, t in zip(p, nl)])
+        r["fnr_high_nurse"] = float(((fw_n == 0) & (yt == 1))[hi].sum() / max(((yt == 1) & hi).sum(), 1))
+        r["alert_rate_high_nurse"] = float(fw_n[hi].mean())
+        r["spec_high_nurse"] = float((fw_n[neg] == 0).mean()) if neg.sum() else np.nan
+        r["harm_nurse"] = weighted_harm_loss(yt, fw_n, tl, HARM_WEIGHTS)
+        r["harm_asym_nurse"] = asym(fw_n)
+        r["nurse_expert_agreement"] = float((nurse[te] == tt).mean())
     # alert burden in the middle tier, where the alert changes the most decisions
     md = tt == "Medium"
     r["alert_rate_medium_framework"] = float((p[md] >= 0.45).mean())
@@ -261,31 +312,33 @@ def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None):
 
 
 def main():
-    X, y, tiers = load()
+    X, y, tiers, nurse = load()
     cols = list(X.columns)
-    print(f"n={len(y)} features={len(cols)} prevalence={y.mean():.3f}")
+    suf = "" if OUTCOME == "admission" else f"_{OUTCOME}"
+    print(f"outcome={OUTCOME} n={len(y)} features={len(cols)} prevalence={y.mean():.3f}")
     for t in TIERS:
         m = tiers == t
         print(f"  {t}: n={m.sum()} prevalence={y[m].mean():.3f}")
-    prim = evaluate("random_forest", PRIMARY_SEED, X, y, tiers, with_shap=True, cols=cols)
-    print(json.dumps(prim, indent=1, default=str))
+    OUT.mkdir(exist_ok=True)
+    if OUTCOME == "admission":
+        prim = evaluate("random_forest", PRIMARY_SEED, X, y, tiers, with_shap=True, cols=cols, nurse=nurse)
+        print(json.dumps(prim, indent=1, default=str))
+        pd.DataFrame([prim]).to_csv(OUT / "ktas_primary.csv", index=False)
     rows = []
     for name in FAMILIES:
         for s in range(N_SEEDS):
-            rows.append(evaluate(name, s, X, y, tiers))
-        print("done", name)
+            rows.append(evaluate(name, s, X, y, tiers, nurse=nurse))
+        print("done", name, flush=True)
     sweep = pd.DataFrame(rows)
-    OUT.mkdir(exist_ok=True)
-    sweep.to_csv(OUT / "ktas_seed_metrics.csv", index=False)
-    pd.DataFrame([prim]).to_csv(OUT / "ktas_primary.csv", index=False)
+    sweep.to_csv(OUT / f"ktas_seed_metrics{suf}.csv", index=False)
     cohort = [{"tier": t, "n": int((tiers == t).sum()),
                "prevalence": float(y[tiers == t].mean())} for t in TIERS]
     cohort.append({"tier": "All", "n": len(y), "prevalence": float(y.mean())})
-    pd.DataFrame(cohort).to_csv(OUT / "ktas_cohort.csv", index=False)
-    summarize(sweep)
+    pd.DataFrame(cohort).to_csv(OUT / f"ktas_cohort{suf}.csv", index=False)
+    summarize(sweep, suf)
 
 
-def summarize(sweep):
+def summarize(sweep, suf=""):
     keys = ["auroc", "brier", "ece_overall", "ece_Low", "ece_Medium", "ece_High",
             "aurc_overall", "aurc_Low", "aurc_Medium", "aurc_High", "harm_baseline",
             "harm_framework", "fnr_high_baseline", "fnr_high_framework",
@@ -294,7 +347,11 @@ def summarize(sweep):
             "ece_null_overall", "ece_excess_overall", "calib_slope_overall",
             "alert_rate_high_baseline", "alert_rate_high_framework",
             "spec_high_baseline", "spec_high_framework",
-            "alert_rate_medium_framework", "ppv_medium_framework", "ltt_n_cal_pos_high"]
+            "alert_rate_medium_framework", "ppv_medium_framework", "ltt_n_cal_pos_high",
+            "harm_asym_baseline", "harm_asym_framework", "fnr_high_nurse", "alert_rate_high_nurse",
+            "spec_high_nurse", "harm_nurse", "harm_asym_nurse", "nurse_expert_agreement",
+            "auroc_High", "prev_High", "n_High"]
+    keys = [k for k in keys if k in sweep.columns]
     g = sweep.groupby("model")
     summ = g[keys].agg(["mean", "std"])
     summ.columns = [f"{a}_{b}" for a, b in summ.columns]
@@ -308,12 +365,16 @@ def summarize(sweep):
         summ[f"verdict_{v}_rate"] = g["verdict"].apply(lambda s: (s == v).mean())
     for gate in [c for c in sweep.columns if c.startswith("gate_")]:
         summ[f"{gate}_pass_rate"] = g[gate].mean()
-    summ.reset_index().to_csv(OUT / "ktas_summary.csv", index=False)
+    summ.reset_index().to_csv(OUT / f"ktas_summary{suf}.csv", index=False)
     print(summ.T.to_string())
 
 
 if __name__ == "__main__":
+    for a in sys.argv[1:]:
+        if a.startswith("--outcome="):
+            OUTCOME = a.split("=", 1)[1]
     if "--summarize-only" in sys.argv:
-        summarize(pd.read_csv(OUT / "ktas_seed_metrics.csv"))
+        suf = "" if OUTCOME == "admission" else f"_{OUTCOME}"
+        summarize(pd.read_csv(OUT / f"ktas_seed_metrics{suf}.csv"), suf)
     else:
         main()
