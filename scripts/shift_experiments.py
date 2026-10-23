@@ -139,6 +139,34 @@ def risk_control_experiment(seed: int, n_deployments: int) -> tuple[list[dict], 
     print(f"  selected lambda = {res.lambda_hat} "
           f"({len(res.valid_lambdas)}/{len(lambdas)} certified)")
 
+    # Sensitivity: a fine candidate grid (step 0.01) on the same split, to show how much
+    # of the alert rate at the certified threshold is an artefact of the coarse grid.
+    fine = np.round(np.arange(0.01, 0.96, 0.01), 2)
+    res_f = learn_then_test(
+        fine, lambda lam: fnr_at_threshold(y[cal], p_cal, lam, mask_cal),
+        n_cal=n_eff, alpha_risk=ALPHA_RISK, delta=DELTA)
+    fine_rows = [{
+        "lambda": float(lam), "empirical_fnr_cal": float(r), "p_value": float(p),
+        "certified": bool(lam in set(res_f.valid_lambdas.tolist())),
+        "fnr_test_at_lambda": fnr_at_threshold(y[te], p_te, lam, mask_te),
+        "alert_rate_high_tier": float((p_te[mask_te] >= lam).mean()),
+        "selected": bool(res_f.lambda_hat is not None and lam == res_f.lambda_hat),
+        "n_cal_positives": n_eff, "seed": seed,
+    } for lam, r, p in zip(fine, res_f.risks, res_f.p_values)]
+    write(fine_rows, "risk_control_fine_grid.csv")
+    print(f"  fine grid: selected lambda = {res_f.lambda_hat}")
+
+    # Population risk: an independent, much larger draw from the same generator, scored
+    # with the SAME fitted model, so that R(lambda_hat) is evaluated almost without
+    # sampling noise rather than on a ~290-positive held-out fold.
+    run_all.N_PER_TIER = 20000
+    Xp, yp, _, tp = run_all.build_cohort()
+    run_all.N_PER_TIER = N_PER_TIER
+    pp = model.predict_proba(Xp)[:, 1]
+    hp = tp == "High"
+    pop_violations = 0
+    pop_risks = []
+
     # The certificate is a statement about repetitions, so repeat.
     rng = np.random.default_rng(seed)
     violations = selected = 0
@@ -162,6 +190,9 @@ def risk_control_experiment(seed: int, n_deployments: int) -> tuple[list[dict], 
         held_risks.append(held)
         alert_rates.append(float((pt[high[te_d]] >= r_d.lambda_hat).mean()))
         violations += held > ALPHA_RISK
+        pop_r = fnr_at_threshold(yp, pp, r_d.lambda_hat, hp)
+        pop_risks.append(pop_r)
+        pop_violations += pop_r > ALPHA_RISK
         if (d + 1) % 100 == 0:
             print(f"  deployment {d + 1}/{n_deployments}: "
                   f"violation rate {violations / max(selected, 1):.3f}", flush=True)
@@ -177,6 +208,14 @@ def risk_control_experiment(seed: int, n_deployments: int) -> tuple[list[dict], 
         "mean_alert_rate_high_tier": float(np.mean(alert_rates)) if alert_rates else float("nan"),
         "p95_heldout_fnr": float(np.quantile(held_risks, 0.95)) if held_risks else float("nan"),
         "guarantee_holds": bool(violations / max(selected, 1) <= DELTA),
+        "population_n_scenarios": int(len(yp)),
+        "population_n_high_positives": int((yp[hp] == 1).sum()),
+        "population_violations": pop_violations,
+        "population_violation_rate": pop_violations / max(selected, 1),
+        "mean_population_fnr": float(np.mean(pop_risks)) if pop_risks else float("nan"),
+        "max_population_fnr": float(np.max(pop_risks)) if pop_risks else float("nan"),
+        "model_refit_per_deployment": False,
+        "deployments_are_resplits_of_one_cohort": True,
         "seed": seed,
     }]
     return main_rows, val_rows

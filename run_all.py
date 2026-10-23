@@ -147,6 +147,9 @@ def make_patient(model, spec, latent_attr):
     return feat, float(state.get(latent_attr, 0.0))
 
 
+LAST_TRUE_PROB: list = []  # filled by build_cohort(); the generator's own P(y=1 | scenario)
+
+
 def build_cohort():
     """Assemble the multi-tier synthetic cohort.
 
@@ -166,6 +169,7 @@ def build_cohort():
     """
     # tier -> logistic steepness (lower = noisier / more overlap)
     tier_steepness = {"Low": 6.0, "Medium": 4.0, "High": 2.5}
+    LAST_TRUE_PROB.clear()
     rows, outcomes, tier_labels = [], [], []
     for tier, (cls, spec, latent_attr) in TIERS.items():
         model = cls()
@@ -179,6 +183,7 @@ def build_cohort():
         z = (sev_arr - sev_arr.mean()) / (sev_arr.std() + 1e-9)
         prob = 1.0 / (1.0 + np.exp(-tier_steepness[tier] * z))
         labels = (rng.random(len(prob)) < prob).astype(int)
+        LAST_TRUE_PROB.extend(prob.tolist())  # oracle probabilities for positive-control runs
         for feat in tier_feats:
             rows.append(feat)
             tier_labels.append(tier)

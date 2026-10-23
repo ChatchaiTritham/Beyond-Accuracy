@@ -46,6 +46,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+import statsmodels.api as sm  # calibration slope / intercept
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
@@ -146,6 +147,30 @@ def stability(model, X_te, X_ref_med, seed, sigma=0.5):
     return float(spearmanr(imp(X_te), imp(Xp))[0])
 
 
+def ece_null(p, n_bins, reps=500, seed=0):
+    """Expected binned ECE of a *perfectly calibrated* model with these predicted
+    probabilities (consistency resampling: y ~ Bernoulli(p)). Reported beside the
+    observed ECE because the plug-in estimator is biased upward in small strata."""
+    rng = np.random.RandomState(seed)
+    vals = [expected_calibration_error((rng.random(len(p)) < p).astype(int), p, n_bins)
+            for _ in range(reps)]
+    return float(np.mean(vals)), float(np.quantile(vals, 0.95))
+
+
+def calib_slope_intercept(y, p):
+    """Logistic calibration slope and intercept (Cox): logit(P(y)) = a + b * logit(p)."""
+    pc = np.clip(p, 1e-6, 1 - 1e-6)
+    lp = np.log(pc / (1 - pc))
+    if len(set(y)) < 2:
+        return float("nan"), float("nan")
+    try:
+        slope = sm.Logit(y, sm.add_constant(lp)).fit(disp=0).params
+        itc = sm.Logit(y, np.ones_like(lp)[:, None], offset=lp).fit(disp=0).params
+        return float(slope[1]), float(itc[0])
+    except Exception:
+        return float("nan"), float("nan")
+
+
 def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None):
     idx = np.arange(len(y))
     strat = np.array([f"{t}_{v}" for t, v in zip(tiers, y)])
@@ -169,12 +194,29 @@ def evaluate(name, seed, X, y, tiers, with_shap=False, cols=None):
         r[f"auroc_{t}"] = roc_auc_score(yt[m], p[m]) if len(set(yt[m])) > 1 else np.nan
         r[f"n_{t}"] = int(m.sum())
         r[f"prev_{t}"] = float(yt[m].mean())
+        r[f"ece_null_{t}"], r[f"ece_null95_{t}"] = ece_null(p[m], N_BINS, seed=seed)
+        r[f"ece_excess_{t}"] = r[f"ece_{t}"] - r[f"ece_null_{t}"]
+        r[f"calib_slope_{t}"], r[f"calib_intercept_{t}"] = calib_slope_intercept(yt[m], p[m])
+    r["ece_null_overall"], r["ece_null95_overall"] = ece_null(p, N_BINS, seed=seed)
+    r["ece_excess_overall"] = r["ece_overall"] - r["ece_null_overall"]
+    r["calib_slope_overall"], r["calib_intercept_overall"] = calib_slope_intercept(yt, p)
     base = (p >= 0.5).astype(int)
     fw = np.array([int(pi >= TIER_THRESHOLD[t]) for pi, t in zip(p, tl)])
     r["harm_baseline"] = weighted_harm_loss(yt, base, tl, HARM_WEIGHTS)
     r["harm_framework"] = weighted_harm_loss(yt, fw, tl, HARM_WEIGHTS)
     r["fnr_high_baseline"] = fnr_at_threshold(yt, p, 0.5, tt == "High")
     r["fnr_high_framework"] = fnr_at_threshold(yt, p, 0.30, tt == "High")
+    hi = tt == "High"
+    r["alert_rate_high_baseline"] = float((p[hi] >= 0.5).mean())
+    r["alert_rate_high_framework"] = float((p[hi] >= 0.30).mean())
+    neg = hi & (yt == 0)
+    r["spec_high_baseline"] = float((p[neg] < 0.5).mean()) if neg.sum() else np.nan
+    r["spec_high_framework"] = float((p[neg] < 0.30).mean()) if neg.sum() else np.nan
+    r["harm_increased"] = bool(r["harm_framework"] > r["harm_baseline"])
+    # alert burden in the middle tier, where the alert changes the most decisions
+    md = tt == "Medium"
+    r["alert_rate_medium_framework"] = float((p[md] >= 0.45).mean())
+    r["ppv_medium_framework"] = float(yt[md & (p >= 0.45)].mean()) if (md & (p >= 0.45)).sum() else np.nan
     r["conformal_coverage"], r["conformal_set_size"] = conformal(p_cal, y[cal], p, yt)
     r["eta_occlusion"] = stability(model, Xm[te], np.median(Xm[tr], axis=0), seed)
     if with_shap:
@@ -247,7 +289,12 @@ def summarize(sweep):
     keys = ["auroc", "brier", "ece_overall", "ece_Low", "ece_Medium", "ece_High",
             "aurc_overall", "aurc_Low", "aurc_Medium", "aurc_High", "harm_baseline",
             "harm_framework", "fnr_high_baseline", "fnr_high_framework",
-            "conformal_coverage", "conformal_set_size", "eta_occlusion", "G"]
+            "conformal_coverage", "conformal_set_size", "eta_occlusion", "G",
+            "ece_null_High", "ece_excess_High", "calib_slope_High", "calib_intercept_High",
+            "ece_null_overall", "ece_excess_overall", "calib_slope_overall",
+            "alert_rate_high_baseline", "alert_rate_high_framework",
+            "spec_high_baseline", "spec_high_framework",
+            "alert_rate_medium_framework", "ppv_medium_framework", "ltt_n_cal_pos_high"]
     g = sweep.groupby("model")
     summ = g[keys].agg(["mean", "std"])
     summ.columns = [f"{a}_{b}" for a, b in summ.columns]
@@ -255,6 +302,8 @@ def summarize(sweep):
     if "ltt_fnr_test_high" in sweep:
         summ["ltt_fnr_test_high_mean"] = g["ltt_fnr_test_high"].mean()
     summ["standard_audit_pass_rate"] = g["standard_audit_pass"].mean()
+    summ["harm_increased_rate"] = g["harm_increased"].mean()
+    summ["ece_high_gate_pass_rate_excess"] = g["ece_excess_High"].apply(lambda s: (s <= 0.05).mean())
     for v in ["Approve", "Conditional", "Reject"]:
         summ[f"verdict_{v}_rate"] = g["verdict"].apply(lambda s: (s == v).mean())
     for gate in [c for c in sweep.columns if c.startswith("gate_")]:

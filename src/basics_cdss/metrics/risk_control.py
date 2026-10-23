@@ -63,11 +63,25 @@ class RiskControlResult:
         return self.lambda_hat is not None
 
 
+def _kl_bernoulli(a: float, b: float) -> float:
+    """KL divergence h1(a, b) between Bernoulli(a) and Bernoulli(b)."""
+    a = min(max(a, 1e-12), 1 - 1e-12)
+    b = min(max(b, 1e-12), 1 - 1e-12)
+    return float(a * np.log(a / b) + (1 - a) * np.log((1 - a) / (1 - b)))
+
+
 def hoeffding_p_value(risk_hat: float, n: int, alpha_risk: float) -> float:
-    """Hoeffding p-value for H: R > alpha_risk, losses in [0, 1]."""
+    """Hoeffding p-value for H: R > alpha_risk, losses in [0, 1].
+
+    Uses the KL (Chernoff) form of Bates et al. (2021) / Angelopoulos et al. (2021),
+    exp(-n * h1(min(R_hat, alpha), alpha)), which is the version combined with the
+    Bentkus bound in the Learn-then-Test "HB" p-value. With zero observed losses it
+    reduces to (1 - alpha)^n. Earlier versions of this package used the additive
+    Hoeffding bound exp(-2 n (alpha - R_hat)^2), which is far looser.
+    """
     if risk_hat >= alpha_risk:
         return 1.0
-    return float(np.exp(-2 * n * (alpha_risk - risk_hat) ** 2))
+    return float(np.exp(-n * _kl_bernoulli(min(risk_hat, alpha_risk), alpha_risk)))
 
 
 def bentkus_p_value(risk_hat: float, n: int, alpha_risk: float) -> float:

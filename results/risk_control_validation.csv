@@ -1,2 +1,2 @@
-n_deployments,n_with_selection,violations,violation_rate,delta,alpha_risk,mean_heldout_fnr,mean_alert_rate_high_tier,p95_heldout_fnr,guarantee_holds,seed
-1000,1000,59,0.059,0.1,0.05,0.005051217440381032,0.956306747719597,0.050856105153925975,True,42
+n_deployments,n_with_selection,violations,violation_rate,delta,alpha_risk,mean_heldout_fnr,mean_alert_rate_high_tier,p95_heldout_fnr,guarantee_holds,population_n_scenarios,population_n_high_positives,population_violations,population_violation_rate,mean_population_fnr,max_population_fnr,model_refit_per_deployment,deployments_are_resplits_of_one_cohort,seed
+1000,1000,63,0.063,0.1,0.05,0.00525263086794287,0.9554788123611555,0.05136986301369863,True,60000,9476,0,0.0,0.004411460531869987,0.03260869565217391,False,True,42
